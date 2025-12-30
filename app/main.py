@@ -42,6 +42,6 @@ def health_check(db: Session = Depends(get_db)):
         return {"status": "unhealthy", "database": str(e)}
     
 
-@app.get("/integer/{int}")
-def read_item(int: int):
-    return {"values": int/2}
+@app.get("/integer/{value}")
+def read_item(value: int):
+    return {"input": value, "result": value / 2}
