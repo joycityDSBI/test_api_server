@@ -44,16 +44,15 @@ services:
   streamlit:
     build:
       context: ./app
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.streamlit
     container_name: streamlit-app
     restart: always
     ports:
       - "8501:8501"
-    command: streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0
     depends_on:
       - app
     volumes:
-      - ./app:/app
+      - ./app/streamlit_app.py:/app/streamlit_app.py
 
 volumes:
   mysql_data:
