@@ -1,0 +1,11 @@
+-- 초기 데이터베이스 설정
+CREATE DATABASE IF NOT EXISTS fastapi_db;
+USE fastapi_db;
+
+-- 예시 테이블
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    username VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
