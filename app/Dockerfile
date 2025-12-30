@@ -4,14 +4,14 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY streamlit_app.py .
+COPY . .
 
-EXPOSE 8501
-EXPOSE 8000
-
-CMD ["python", "-m", "streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# 기본 명령어는 FastAPI (docker-compose에서 Streamlit은 command로 오버라이드)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
