@@ -40,3 +40,8 @@ def health_check(db: Session = Depends(get_db)):
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "database": str(e)}
+    
+
+@app.get("/integer/{int}")
+def read_item(int: int):
+    return {"values": int/2}
