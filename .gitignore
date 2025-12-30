@@ -6,3 +6,4 @@ mysql-data/
 *.log
 .idea/
 .vscode/
+service-account-key.json

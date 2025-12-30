@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db, engine, Base
 import time
+from bigquery_service import bq_service
+from pydantic import BaseModel
 
 app = FastAPI(
     title="FastAPI Server",
@@ -45,3 +47,19 @@ def health_check(db: Session = Depends(get_db)):
 @app.get("/integer/{value}")
 def read_item(value: int):
     return {"input": value, "result": value / 2}
+
+class QueryRequest(BaseModel):
+    query: str
+    max_results: int = 100
+
+@app.post("/bigquery/query")
+def run_bigquery_query(request: QueryRequest):
+    """BigQuery 쿼리 실행"""
+    result = bq_service.run_query(request.query, request.max_results)
+    return result
+
+@app.get("/bigquery/table/{dataset_id}/{table_id}")
+def get_table_info(dataset_id: str, table_id: str):
+    """테이블 정보 조회"""
+    result = bq_service.get_table_schema(dataset_id, table_id)
+    return result

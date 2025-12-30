@@ -179,3 +179,5 @@ with tab3:
         "메서드": ["GET", "GET", "GET"]
     }
     st.table(endpoints_data)
+
+    

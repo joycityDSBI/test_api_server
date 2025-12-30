@@ -35,11 +35,14 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       DEBUG: ${DEBUG}
       SECRET_KEY: ${SECRET_KEY}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./app:/app
+      - ./app/credentials:/app/credentials
 
   streamlit:
     build:
