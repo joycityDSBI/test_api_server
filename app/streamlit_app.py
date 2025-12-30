@@ -181,7 +181,20 @@ LIMIT 10"""
                         timeout=60
                     )
                     
-                    result = response.json()
+                    # 디버깅: 응답 상태 코드 확인
+                    st.write(f"Debug - Status Code: {response.status_code}")
+                    
+                    # 응답 텍스트 확인
+                    response_text = response.text
+                    st.write(f"Debug - Response (first 500 chars): {response_text[:500]}")
+                    
+                    # JSON 파싱 시도
+                    try:
+                        result = response.json()
+                    except json.JSONDecodeError as je:
+                        st.error(f"❌ JSON 파싱 오류: {str(je)}")
+                        st.code(response_text)
+                        raise
                     
                     if result.get("success"):
                         st.success(f"✅ 쿼리 성공! ({result.get('row_count', 0)} 행)")
@@ -218,8 +231,12 @@ LIMIT 10"""
                         
                 except requests.exceptions.Timeout:
                     st.error("⏱️ 쿼리 실행 시간 초과 (60초)")
+                except json.JSONDecodeError as e:
+                    st.error(f"❌ JSON 파싱 오류: {str(e)}")
                 except Exception as e:
                     st.error(f"❌ 오류 발생: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
         else:
             st.warning("⚠️ 쿼리를 입력해주세요!")
     
