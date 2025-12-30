@@ -1,20 +1,6 @@
-services:
-  app:
-    build: ./app
-    container_name: fastapi-app
-    restart: always
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./app:/app
-    networks:
-      - app-network
+version: '3.8'
 
+services:
   db:
     image: mysql:8.0
     container_name: mysql-db
@@ -27,19 +13,32 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - app-network
+
+  app:
+    build: .
+    container_name: fastapi-app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      DEBUG: ${DEBUG}
+      SECRET_KEY: ${SECRET_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
 
 volumes:
-  mysql-data:
-
-networks:
-  app-network:
-    driver: bridge
+  mysql_data:
