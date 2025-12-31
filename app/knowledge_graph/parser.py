@@ -31,29 +31,27 @@ class KnowledgeGraphParser:
         
         # 게임 이름 매핑 확인 (우선순위 높음)
         for game_key, game_info in self.game_mappings.items():
+            matched = False
+            
             # 게임 키 매칭 (대소문자 구분 없음)
             if game_key.lower() in query_lower or game_key.upper() in query_upper:
-                result["game_filters"].append({
-                    "game_name": game_key,
-                    "full_name": game_info.get('full_name'),
-                    "table": game_info.get('table'),
-                    "column": game_info.get('column'),
-                    "joyple_game_code": game_info.get('joyple_game_code')
-                })
-                # 게임 테이블 자동 추가
-                if game_info.get('table'):
-                    table_entity = game_info['table'].split('.')[-1]
-                    if table_entity not in result["entities"]:
-                        result["entities"].append(table_entity)
-            # full_name으로도 매칭 시도
+                matched = True
+            # full_name으로도 매칭
             elif game_info.get('full_name') and game_info['full_name'] in query:
-                result["game_filters"].append({
+                matched = True
+            
+            if matched:
+                # 중요: game_info의 모든 값을 그대로 복사
+                game_filter = {
                     "game_name": game_key,
                     "full_name": game_info.get('full_name'),
                     "table": game_info.get('table'),
                     "column": game_info.get('column'),
-                    "joyple_game_code": game_info.get('joyple_game_code')
-                })
+                    "joyple_game_code": game_info.get('joyple_game_code')  # 여기가 핵심!
+                }
+                result["game_filters"].append(game_filter)
+                
+                # 게임 테이블 자동 추가
                 if game_info.get('table'):
                     table_entity = game_info['table'].split('.')[-1]
                     if table_entity not in result["entities"]:
