@@ -191,13 +191,13 @@ game_mappings:
     full_name: "캐리비안의 해적"
     table: "dim_joyple_game_code"
     column: "joyple_game_code"
-    filter_value: 131
+    joyple_game_code: 131
   
   RESU:
     full_name: "바이오하자드"
     table: "dim_joyple_game_code"
     column: "joyple_game_code"
-    filter_value: 159
+    joyple_game_code: 159
 
 # 필터 조건 매핑
 filters:
