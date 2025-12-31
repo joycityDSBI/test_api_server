@@ -148,7 +148,7 @@ aggregations:
     function: "COUNT"
   sum:
     aliases: ["합계", "총", "전체", "합계", "sum"]
-    function: "SUM
+    function: "SUM"
   max:
     aliases: ["최고", "최대", "max", "가장 큰"]
     function: "MAX"
