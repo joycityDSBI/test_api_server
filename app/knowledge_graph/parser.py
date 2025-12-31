@@ -12,10 +12,12 @@ class KnowledgeGraphParser:
         self.aggregations = self.schema.get('aggregations', {})
         self.time_expressions = self.schema.get('time_expressions', {})
         self.filters = self.schema.get('filters', {})
+        self.game_mappings = self.schema.get('game_mappings', {})
     
     def extract_keywords(self, query: str) -> Dict[str, Any]:
         """자연어 질의에서 키워드 추출"""
         query_lower = query.lower()
+        query_upper = query.upper()
         
         result = {
             "entities": [],
@@ -23,20 +25,39 @@ class KnowledgeGraphParser:
             "aggregations": [],
             "time_filters": [],
             "conditions": [],
+            "game_filters": [],
             "raw_query": query
         }
+        
+        # 게임 이름 매핑 확인 (대소문자 구분 없이)
+        for game_key, game_info in self.game_mappings.items():
+            if game_key.lower() in query_lower or game_key.upper() in query_upper:
+                result["game_filters"].append({
+                    "game_name": game_key,
+                    "full_name": game_info.get('full_name'),
+                    "table": game_info.get('table'),
+                    "column": game_info.get('column'),
+                    "value": game_info.get('filter_value')
+                })
+                # 게임 테이블도 자동으로 추가
+                if game_info.get('table'):
+                    table_entity = game_info['table'].split('.')[-1]
+                    if table_entity not in result["entities"]:
+                        result["entities"].append(table_entity)
         
         # 엔티티 추출
         for entity_name, entity_info in self.entities.items():
             # 엔티티 이름 매칭
             if entity_name in query_lower:
-                result["entities"].append(entity_name)
+                if entity_name not in result["entities"]:
+                    result["entities"].append(entity_name)
                 continue
             
             # 별칭 매칭
             for alias in entity_info.get('aliases', []):
                 if alias in query_lower:
-                    result["entities"].append(entity_name)
+                    if entity_name not in result["entities"]:
+                        result["entities"].append(entity_name)
                     break
             
             # 컬럼 추출

@@ -81,6 +81,7 @@ entities:
         type: integer
         description: "플레이 시간"
         aliases: ["플레이 시간(초)", "플레이 타임", "이용 시간", "play time", "play duration"]
+
   dim_joyple_game_code:
     type: table
     description: "조이플 게임 코드"
@@ -108,6 +109,7 @@ entities:
         type: string
         description: "게임 이름"
         aliases: ["게임 명", "게임", "game name", "", "게임명"]
+
   dim_os_id:
     type: table
     description: "운영체제 ID"
@@ -180,6 +182,20 @@ time_expressions:
   last_month:
     aliases: ["지난달", "전월"]
     sql: "DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)"
+
+# 게임이름 매핑
+game_mappings:
+  POTC:
+    full_name: "캐리비안의 해적"
+    table: "dim_joyple_game_code"
+    column: "joyple_game_code"
+    filter_value: "131"
+  
+  RESU:
+    full_name: "바이오하자드"
+    table: "dim_joyple_game_code"
+    column: "joyple_game_code"
+    filter_value: "159"
 
 # 필터 조건 매핑
 filters:

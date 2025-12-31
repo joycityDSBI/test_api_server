@@ -8,6 +8,11 @@ class QueryGenerator:
     def generate_sql(self, keywords: Dict[str, Any]) -> Dict[str, Any]:
         """추출된 키워드로부터 SQL 쿼리 생성"""
         
+        # 게임 필터가 있으면 관련 엔티티 추가
+        if keywords.get("game_filters"):
+            if "f_common_access" not in keywords["entities"]:
+                keywords["entities"].insert(0, "f_common_access")
+        
         if not keywords.get("entities"):
             return {
                 "success": False,
@@ -15,9 +20,12 @@ class QueryGenerator:
                 "keywords": keywords
             }
         
-        # 주 엔티티 결정
-        main_entity = keywords["entities"][0]
+        # 주 엔티티 결정 (f_common_access 우선)
+        main_entity = "f_common_access" if "f_common_access" in keywords["entities"] else keywords["entities"][0]
         main_table = self.parser.get_table_name(main_entity)
+        
+        # JOIN이 필요한지 확인
+        need_join = len(keywords["entities"]) > 1 or keywords.get("game_filters")
         
         # SELECT 절 생성
         select_parts = []
@@ -25,25 +33,49 @@ class QueryGenerator:
         # 집계 함수가 있는 경우
         if keywords.get("aggregations"):
             for agg in keywords["aggregations"]:
-                # 집계할 컬럼 찾기
-                if keywords.get("columns"):
-                    col = keywords["columns"][0]
-                    select_parts.append(
-                        f"{agg['function']}({col['column']}) as {col['column']}_{agg['name']}"
-                    )
-                else:
-                    # 기본적으로 COUNT(*) 사용
-                    select_parts.append(f"{agg['function']}(*) as count")
+                if agg['name'] == 'count':
+                    # "유저 수" 같은 경우 COUNT(DISTINCT game_account_name) 사용
+                    if any(col.get('column') == 'game_account_name' for col in keywords.get("columns", [])):
+                        select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
+                    else:
+                        select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
+                elif agg['name'] == 'sum':
+                    # 합계할 컬럼 찾기
+                    numeric_cols = [col for col in keywords.get("columns", []) if col.get('type') in ['integer', 'numeric']]
+                    if numeric_cols:
+                        col = numeric_cols[0]
+                        select_parts.append(f"SUM(a.{col['column']}) as total_{col['column']}")
+                    else:
+                        select_parts.append("SUM(a.access_cnt) as total_access")
+                elif agg['name'] == 'avg':
+                    numeric_cols = [col for col in keywords.get("columns", []) if col.get('type') in ['integer', 'numeric']]
+                    if numeric_cols:
+                        col = numeric_cols[0]
+                        select_parts.append(f"AVG(a.{col['column']}) as avg_{col['column']}")
         else:
             # 집계 없으면 전체 컬럼 또는 특정 컬럼
             if keywords.get("columns"):
                 for col in keywords["columns"]:
-                    select_parts.append(col["column"])
+                    select_parts.append(f"a.{col['column']}")
             else:
-                select_parts.append("*")
+                select_parts.append("a.*")
         
-        # FROM 절
-        from_clause = f"`{main_table}`"
+        if not select_parts:
+            select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
+        
+        # FROM 절 및 JOIN 생성
+        from_parts = [f"`{main_table}` a"]
+        
+        # 게임 필터가 있으면 JOIN 추가
+        if keywords.get("game_filters"):
+            game_filter = keywords["game_filters"][0]
+            game_table = self.parser.get_table_name(game_filter['table'].split('.')[-1])
+            
+            # JOIN 조건 찾기
+            rel = self.parser.find_relationship(main_entity, game_filter['table'].split('.')[-1])
+            if rel:
+                join_key = rel.get('join_key')
+                from_parts.append(f"JOIN `{game_table}` g ON a.{join_key} = g.{join_key}")
         
         # WHERE 절 생성
         where_parts = []
@@ -51,26 +83,27 @@ class QueryGenerator:
         # 시간 필터
         if keywords.get("time_filters"):
             time_filter = keywords["time_filters"][0]
-            # 날짜 컬럼 찾기
-            date_columns = [col for col in keywords.get("columns", []) 
-                          if col.get("type") == "timestamp"]
-            if date_columns:
-                date_col = date_columns[0]["column"]
-                where_parts.append(f"{date_col} >= {time_filter['sql']}")
+            # datekey 컬럼 사용
+            where_parts.append(f"a.datekey = {time_filter['sql']}")
         
-        # 숫자 조건 (예: "100 이상")
+        # 게임 필터
+        if keywords.get("game_filters"):
+            game_filter = keywords["game_filters"][0]
+            where_parts.append(f"g.{game_filter['column']} = '{game_filter['value']}'")
+        
+        # 숫자 조건
         if keywords.get("numbers"):
             numeric_columns = [col for col in keywords.get("columns", []) 
-                             if col.get("type") == "numeric"]
+                             if col.get("type") in ["numeric", "integer"]]
             if numeric_columns:
                 num_col = numeric_columns[0]["column"]
                 num_value = keywords["numbers"][0]
-                where_parts.append(f"{num_col} >= {num_value}")
+                where_parts.append(f"a.{num_col} >= {num_value}")
         
         # 쿼리 조합
         query_parts = [
             f"SELECT {', '.join(select_parts)}",
-            f"FROM {from_clause}"
+            f"FROM {' '.join(from_parts)}"
         ]
         
         if where_parts:
@@ -100,8 +133,12 @@ class QueryGenerator:
             aggs = ", ".join([a["name"] for a in keywords["aggregations"]])
             parts.append(f"집계: {aggs}")
         
+        if keywords.get("game_filters"):
+            games = ", ".join([g["game_name"] for g in keywords["game_filters"]])
+            parts.append(f"게임: {games}")
+        
         if keywords.get("time_filters"):
             times = ", ".join([t["name"] for t in keywords["time_filters"]])
-            parts.append(f"시간 필터: {times}")
+            parts.append(f"시간: {times}")
         
         return " | ".join(parts)
