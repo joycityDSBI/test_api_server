@@ -6,11 +6,23 @@ import time
 from bigquery_service import bq_service
 from pydantic import BaseModel
 
+# Natural Language Query 엔드포인트
+from knowledge_graph.parser import KnowledgeGraphParser
+from knowledge_graph.query_generator import QueryGenerator
+
 app = FastAPI(
     title="FastAPI Server",
     description="GCP Compute Engine 기반 FastAPI 서버",
     version="1.0.0"
 )
+
+# Knowledge Graph 초기화
+kg_parser = KnowledgeGraphParser()
+query_gen = QueryGenerator(kg_parser)
+
+class NLQueryRequest(BaseModel):
+    query: str
+    execute: bool = True
 
 @app.on_event("startup")
 def startup():
@@ -63,3 +75,42 @@ def get_table_info(dataset_id: str, table_id: str):
     """테이블 정보 조회"""
     result = bq_service.get_table_schema(dataset_id, table_id)
     return result
+
+@app.post("/nlquery")
+def natural_language_query(request: NLQueryRequest):
+    """자연어 쿼리를 SQL로 변환하고 실행"""
+    try:
+        # 1. 키워드 추출
+        keywords = kg_parser.extract_keywords(request.query)
+        
+        # 2. SQL 쿼리 생성
+        query_result = query_gen.generate_sql(keywords)
+        
+        if not query_result.get("success"):
+            return query_result
+        
+        # 3. 쿼리 실행 (옵션)
+        if request.execute:
+            sql_query = query_result["sql"]
+            bq_result = bq_service.run_query(sql_query, max_results=100)
+            
+            return {
+                "success": True,
+                "keywords": keywords,
+                "generated_sql": sql_query,
+                "explanation": query_result.get("explanation"),
+                "query_result": bq_result
+            }
+        else:
+            return {
+                "success": True,
+                "keywords": keywords,
+                "generated_sql": query_result["sql"],
+                "explanation": query_result.get("explanation")
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"자연어 쿼리 처리 실패: {str(e)}"
+        }
