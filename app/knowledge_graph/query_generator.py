@@ -52,17 +52,25 @@ class QueryGenerator:
         # JOIN 절 생성
         join_clauses = []
         use_game_join = False
+        game_entity = None
         
-        # 게임 필터가 있으면 무조건 JOIN
+        # 게임 필터가 있으면 무조건 JOIN 추가
         if keywords.get("game_filters") and len(keywords["game_filters"]) > 0:
             game_filter = keywords["game_filters"][0]
-            game_entity = game_filter.get('table', '').split('.')[-1]
             
-            if game_entity:
+            # 테이블 이름에서 엔티티 추출
+            table_name = game_filter.get('table', '')
+            if table_name:
+                # 'dim_joyple_game_code' 또는 'schema.dim_joyple_game_code' 형식 처리
+                game_entity = table_name.split('.')[-1] if '.' in table_name else table_name
+                
+                # 게임 테이블의 전체 경로 가져오기
                 game_table = self.parser.get_table_name(game_entity)
                 
-                if game_table:
+                if game_table and game_entity:
+                    # 관계 찾기
                     rel = self.parser.find_relationship(main_entity, game_entity)
+                    
                     if rel:
                         join_key = rel.get('join_key')
                         join_clauses.append(f"JOIN `{game_table}` g ON a.{join_key} = g.{join_key}")
@@ -86,7 +94,7 @@ class QueryGenerator:
             game_filter = keywords["game_filters"][0]
             joyple_code = game_filter.get('joyple_game_code')
             
-            if joyple_code:
+            if joyple_code is not None:
                 where_parts.append(f"g.joyple_game_code = {joyple_code}")
         
         # 쿼리 조합
@@ -112,7 +120,9 @@ class QueryGenerator:
             "explanation": self._generate_explanation(keywords),
             "debug": {
                 "use_game_join": use_game_join,
-                "game_filters": keywords.get("game_filters", [])
+                "game_entity": game_entity,
+                "join_clauses": join_clauses,
+                "where_parts": where_parts
             }
         }
     
