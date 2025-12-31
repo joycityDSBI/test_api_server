@@ -136,13 +136,16 @@ entities:
 
 # 관계 정의
 relationships:
-  - from: f_common_access.joyple_game_code
-    to: dim_joyple_game_code.joyple_game_code
+  - from: f_common_access
+    to: dim_joyple_game_code
     type: many-to-one
+    join_key: joyple_game_code
     description: "f_common_access의 joyple_game_code는 dim_joyple_game_code의 joyple_game_code를 참조합니다."
-  - from: f_common_access.os_id
-    to: dim_os_id.os_id
+
+  - from: f_common_access
+    to: dim_os_id
     type: many-to-one
+    join_key: os_id
     description: "f_common_access의 os_id는 dim_os_id의 os_id를 참조합니다."
 
 # 집계 함수 매핑
