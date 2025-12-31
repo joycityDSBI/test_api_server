@@ -2,6 +2,7 @@ entities:
   # 테이블/데이터 셋 정의
   f_common_access:
     type: table
+    table: "datahub-478802.datahub.f_common_access"
     description: "사용자 로그인 정보"
     aliases:
       - "로그인"
@@ -84,6 +85,7 @@ entities:
 
   dim_joyple_game_code:
     type: table
+    table: "datahub-478802.datahub.dim_joyple_game_code"
     description: "조이플 게임 코드"
     aliases:
       - "조이플 게임"
