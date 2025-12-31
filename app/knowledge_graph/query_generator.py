@@ -24,8 +24,12 @@ class QueryGenerator:
         main_entity = "f_common_access" if "f_common_access" in keywords["entities"] else keywords["entities"][0]
         main_table = self.parser.get_table_name(main_entity)
         
-        # JOIN이 필요한지 확인
-        need_join = len(keywords["entities"]) > 1 or keywords.get("game_filters")
+        if not main_table:
+            return {
+                "success": False,
+                "error": f"테이블을 찾을 수 없습니다: {main_entity}",
+                "keywords": keywords
+            }
         
         # SELECT 절 생성
         select_parts = []
@@ -34,13 +38,8 @@ class QueryGenerator:
         if keywords.get("aggregations"):
             for agg in keywords["aggregations"]:
                 if agg['name'] == 'count':
-                    # "유저 수" 같은 경우 COUNT(DISTINCT game_account_name) 사용
-                    if any(col.get('column') == 'game_account_name' for col in keywords.get("columns", [])):
-                        select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
-                    else:
-                        select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
+                    select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
                 elif agg['name'] == 'sum':
-                    # 합계할 컬럼 찾기
                     numeric_cols = [col for col in keywords.get("columns", []) if col.get('type') in ['integer', 'numeric']]
                     if numeric_cols:
                         col = numeric_cols[0]
@@ -52,8 +51,9 @@ class QueryGenerator:
                     if numeric_cols:
                         col = numeric_cols[0]
                         select_parts.append(f"AVG(a.{col['column']}) as avg_{col['column']}")
+                else:
+                    select_parts.append("COUNT(*) as count")
         else:
-            # 집계 없으면 전체 컬럼 또는 특정 컬럼
             if keywords.get("columns"):
                 for col in keywords["columns"]:
                     select_parts.append(f"a.{col['column']}")
@@ -63,19 +63,25 @@ class QueryGenerator:
         if not select_parts:
             select_parts.append("COUNT(DISTINCT a.game_account_name) as user_count")
         
-        # FROM 절 및 JOIN 생성
-        from_parts = [f"`{main_table}` a"]
+        # FROM 절 생성
+        from_clause = f"`{main_table}` a"
         
-        # 게임 필터가 있으면 JOIN 추가
+        # JOIN 절 생성 (게임 필터가 있는 경우)
+        join_clauses = []
+        use_game_join = False
+        
         if keywords.get("game_filters"):
             game_filter = keywords["game_filters"][0]
-            game_table = self.parser.get_table_name(game_filter['table'].split('.')[-1])
+            game_entity = game_filter['table'].split('.')[-1]
+            game_table = self.parser.get_table_name(game_entity)
             
-            # JOIN 조건 찾기
-            rel = self.parser.find_relationship(main_entity, game_filter['table'].split('.')[-1])
-            if rel:
-                join_key = rel.get('join_key')
-                from_parts.append(f"JOIN `{game_table}` g ON a.{join_key} = g.{join_key}")
+            if game_table:
+                # JOIN 조건 찾기
+                rel = self.parser.find_relationship(main_entity, game_entity)
+                if rel:
+                    join_key = rel.get('join_key')
+                    join_clauses.append(f"JOIN `{game_table}` g ON a.{join_key} = g.{join_key}")
+                    use_game_join = True
         
         # WHERE 절 생성
         where_parts = []
@@ -83,16 +89,19 @@ class QueryGenerator:
         # 시간 필터
         if keywords.get("time_filters"):
             time_filter = keywords["time_filters"][0]
-            # datekey 컬럼 사용
             where_parts.append(f"a.datekey = {time_filter['sql']}")
         
-        # 게임 필터
-        if keywords.get("game_filters"):
+        # 게임 필터 (JOIN이 있을 때만 사용)
+        if keywords.get("game_filters") and use_game_join:
             game_filter = keywords["game_filters"][0]
-            where_parts.append(f"g.{game_filter['column']} = '{game_filter['value']}'")
+            # joyple_game_code 사용 (숫자로)
+            if 'joyple_game_code' in game_filter:
+                where_parts.append(f"g.joyple_game_code = {game_filter['joyple_game_code']}")
+            elif game_filter.get('column') and game_filter.get('value'):
+                where_parts.append(f"g.{game_filter['column']} = '{game_filter['value']}'")
         
         # 숫자 조건
-        if keywords.get("numbers"):
+        if keywords.get("numbers") and not keywords.get("game_filters"):
             numeric_columns = [col for col in keywords.get("columns", []) 
                              if col.get("type") in ["numeric", "integer"]]
             if numeric_columns:
@@ -103,9 +112,14 @@ class QueryGenerator:
         # 쿼리 조합
         query_parts = [
             f"SELECT {', '.join(select_parts)}",
-            f"FROM {' '.join(from_parts)}"
+            f"FROM {from_clause}"
         ]
         
+        # JOIN 추가
+        if join_clauses:
+            query_parts.extend(join_clauses)
+        
+        # WHERE 추가
         if where_parts:
             query_parts.append(f"WHERE {' AND '.join(where_parts)}")
         
