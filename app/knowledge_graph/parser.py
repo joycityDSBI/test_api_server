@@ -29,17 +29,31 @@ class KnowledgeGraphParser:
             "raw_query": query
         }
         
-        # 게임 이름 매핑 확인 (대소문자 구분 없이)
+        # 게임 이름 매핑 확인 (우선순위 높음)
         for game_key, game_info in self.game_mappings.items():
+            # 게임 키 매칭 (대소문자 구분 없음)
             if game_key.lower() in query_lower or game_key.upper() in query_upper:
                 result["game_filters"].append({
                     "game_name": game_key,
                     "full_name": game_info.get('full_name'),
                     "table": game_info.get('table'),
                     "column": game_info.get('column'),
-                    "value": game_info.get('filter_value')
+                    "joyple_game_code": game_info.get('joyple_game_code')
                 })
-                # 게임 테이블도 자동으로 추가
+                # 게임 테이블 자동 추가
+                if game_info.get('table'):
+                    table_entity = game_info['table'].split('.')[-1]
+                    if table_entity not in result["entities"]:
+                        result["entities"].append(table_entity)
+            # full_name으로도 매칭 시도
+            elif game_info.get('full_name') and game_info['full_name'] in query:
+                result["game_filters"].append({
+                    "game_name": game_key,
+                    "full_name": game_info.get('full_name'),
+                    "table": game_info.get('table'),
+                    "column": game_info.get('column'),
+                    "joyple_game_code": game_info.get('joyple_game_code')
+                })
                 if game_info.get('table'):
                     table_entity = game_info['table'].split('.')[-1]
                     if table_entity not in result["entities"]:
@@ -47,13 +61,11 @@ class KnowledgeGraphParser:
         
         # 엔티티 추출
         for entity_name, entity_info in self.entities.items():
-            # 엔티티 이름 매칭
             if entity_name in query_lower:
                 if entity_name not in result["entities"]:
                     result["entities"].append(entity_name)
                 continue
             
-            # 별칭 매칭
             for alias in entity_info.get('aliases', []):
                 if alias in query_lower:
                     if entity_name not in result["entities"]:
@@ -70,7 +82,6 @@ class KnowledgeGraphParser:
                     })
                     continue
                 
-                # 컬럼 별칭 매칭
                 for alias in col_info.get('aliases', []):
                     if alias in query_lower:
                         result["columns"].append({
@@ -83,7 +94,7 @@ class KnowledgeGraphParser:
         # 집계 함수 추출
         for agg_name, agg_info in self.aggregations.items():
             for alias in agg_info.get('aliases', []):
-                if alias in query_lower:
+                if alias in query_lower or alias in query:
                     result["aggregations"].append({
                         "name": agg_name,
                         "function": agg_info.get('function')
@@ -93,7 +104,7 @@ class KnowledgeGraphParser:
         # 시간 표현 추출
         for time_name, time_info in self.time_expressions.items():
             for alias in time_info.get('aliases', []):
-                if alias in query_lower:
+                if alias in query_lower or alias in query:
                     result["time_filters"].append({
                         "name": time_name,
                         "sql": time_info.get('sql')
