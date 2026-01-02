@@ -37,6 +37,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
     depends_on:
       db:
         condition: service_healthy
