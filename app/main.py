@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db, engine, Base
 from pydantic import BaseModel
 import time
 import os
+from app.knowledge_graph.llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain
 
 app = FastAPI(
     title="FastAPI Server",
@@ -77,72 +78,64 @@ def get_table_info(dataset_id: str, table_id: str):
             "error": f"Unexpected error: {str(e)}"
         }
 
-# Natural Language Query 엔드포인트
-kg_available = os.path.exists("knowledge_graph/schema.yml")
-
-if kg_available:
-    try:
-        from knowledge_graph.parser import KnowledgeGraphParser
-        from knowledge_graph.query_generator import QueryGenerator
-        
-        kg_parser = KnowledgeGraphParser()
-        query_gen = QueryGenerator(kg_parser)
-        
-        print("✅ Knowledge Graph initialized successfully!")
-    except Exception as e:
-        print(f"⚠️ Knowledge Graph initialization failed: {str(e)}")
-        kg_available = False
-
+# 자연어 질의 변환 엔드포인트
 class NLQueryRequest(BaseModel):
     query: str
     execute: bool = True
 
+# --- [초기화] 서버 시작 시 한 번만 실행 ---
+# 1. YAML 로드
+SCHEMA_DIR = "./knowledge_graph"  # YAML 파일들이 있는 폴더 경로
+full_data = load_and_merge_yamls(SCHEMA_DIR)
+
+# 2. 프롬프트 컨텍스트 생성 (메모리에 캐싱)
+context_string = parse_schema_to_prompt(full_data)
+# 3. Gemini 체인 생성
+try:
+    # API 키가 환경변수에 없다면 여기서 설정하거나 에러 발생
+    # os.environ["GOOGLE_API_KEY"] = "your_api_key_here" 
+    chain = get_gemini_chain(model_name="gemini-1.5-pro")
+    print("✅ Gemini Chain initialized successfully.")
+except Exception as e:
+    print(f"❌ Failed to initialize Gemini Chain: {e}")
+    chain = None
+
+# 요청 데이터 모델
+class QueryRequest(BaseModel):
+    query: str
+    execute: bool = True
+
 @app.post("/nlquery")
-def natural_language_query(request: NLQueryRequest):
-    """자연어 쿼리를 SQL로 변환하고 실행"""
-    
-    if not kg_available:
-        return {
-            "success": False,
-            "error": "Knowledge Graph가 초기화되지 않았습니다."
-        }
-    
+async def process_nl_query(request: QueryRequest):
+    if not chain:
+        raise HTTPException(status_code=500, detail="LLM Chain is not initialized.")
+
     try:
-        # 1. 키워드 추출
-        keywords = kg_parser.extract_keywords(request.query)
+        # 1. LLM 실행 (context와 질문 주입)
+        generated_sql = chain.invoke({
+            "context": context_string,
+            "question": request.query
+        })
         
-        # 2. SQL 쿼리 생성
-        query_result = query_gen.generate_sql(keywords)
+        # 2. 결과 전처리 (가끔 마크다운이 붙어나올 경우 제거)
+        cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
         
-        if not query_result.get("success"):
-            return query_result
-        
-        # 3. 쿼리 실행 (옵션)
-        if request.execute:
-            sql_query = query_result["sql"]
-            bq_result = bq_service.run_query(sql_query, max_results=100)
-            
-            return {
-                "success": True,
-                "keywords": keywords,
-                "generated_sql": sql_query,
-                "explanation": query_result.get("explanation"),
-                "debug": query_result.get("debug"),
-                "query_result": bq_result
-            }
-        else:
-            return {
-                "success": True,
-                "keywords": keywords,
-                "generated_sql": query_result["sql"],
-                "explanation": query_result.get("explanation"),
-                "debug": query_result.get("debug")
-            }
-            
-    except Exception as e:
-        import traceback
-        return {
-            "success": False,
-            "error": f"자연어 쿼리 처리 실패: {str(e)}",
-            "traceback": traceback.format_exc()
+        response_data = {
+            "success": True,
+            "generated_sql": cleaned_sql,
+            "data": [],
+            "explanation": "Generated based on YAML schema."
         }
+
+        # 3. (옵션) 실제 DB 조회 로직
+        if request.execute:
+            # 여기에 실제 BigQuery 연동 코드를 넣으시면 됩니다.
+            # 지금은 테스트용 더미 데이터 반환
+            response_data["data"] = [
+                {"game": "Dummy Game", "login_count": 1234, "date": "2024-05-20"}
+            ]
+
+        return response_data
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}

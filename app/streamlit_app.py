@@ -276,182 +276,86 @@ with tab3:
             else:
                 st.warning("⚠️ Dataset ID와 Table ID를 모두 입력해주세요!")
 
-# 탭 4: 자연어 쿼리
+# 탭 4: 자연어 쿼리 (Gemini + YAML 기반)
 with tab4:
-    st.subheader("🤖 자연어로 데이터 조회하기")
+    st.subheader("🤖 AI 데이터 분석가")
     
     st.markdown("""
-    자연어로 로그인 관련 질문하면 자동으로 SQL 쿼리를 생성하고 실행합니다.
-    
-    **예시 질문:**
-    - "오늘 POTC의 사용자 수는?"
-    - "일주일간 RESU의 사용자 수는?"
-    - "전일 POTC android 로그인 유저 수는?"
-    """)
-    
-    # 예시 질문 선택
-    example_queries = [
-        "직접 입력",
-        "오늘 POTC의 사용자 수는?",
-        "일주일간 RESU의 사용자 수는?",
-        "전일 POTC android 로그인 유저 수는?"
-    ]
-    
-    selected_example = st.selectbox(
-        "예시 질문 선택",
-        example_queries,
-        key="nl_example"
-    )
-    
-    if selected_example == "직접 입력":
-        default_nl_query = ""
-    else:
-        default_nl_query = selected_example
-    
-    # 자연어 입력
-    nl_query_input = st.text_input(
-        "질문을 입력하세요",
-        value=default_nl_query,
-        placeholder="예: 이번달 로그인 유저 수는?",
-        key="nl_query_input"
-    )
-    
-    col1, col2, col3 = st.columns([1, 1, 3])
-    
+    <div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-bottom: 20px;'>
+        <strong>💡 사용 가이드:</strong><br>
+        YAML에 정의된 메타데이터를 바탕으로 질문을 해석하여 SQL을 생성합니다.<br>
+        예: <em>"지난달 캐리비안의 해적 접속 유저 수 알려줘"</em>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2 = st.columns([2, 1])
+
     with col1:
-        execute_query = st.checkbox("쿼리 실행", value=True, key="nl_execute")
+        nl_query_input = st.text_area(
+            "질문 입력",
+            height=100,
+            placeholder="예: 어제 RESU 게임의 안드로이드 로그인 횟수는 몇 번이야?",
+            key="nl_query_input"
+        )
     
     with col2:
-        analyze_btn = st.button("🔍 분석하기", type="primary", key="nl_analyze")
-    
+        st.write("옵션")
+        execute_query = st.checkbox("쿼리 즉시 실행", value=True, help="SQL 생성 후 DB조회까지 수행합니다.")
+        show_reasoning = st.checkbox("생성 과정 보기", value=False, help="어떤 YAML 규칙이 적용되었는지 봅니다.")
+        
+        st.write("") # 여백
+        analyze_btn = st.button("🚀 분석 시작", type="primary", use_container_width=True, key="nl_analyze")
+
+    st.markdown("---")
+
+    # 분석 버튼 클릭 시
     if analyze_btn:
-        if nl_query_input.strip():
-            with st.spinner("⏳ 질문 분석 중..."):
+        if not nl_query_input.strip():
+            st.warning("⚠️ 질문을 입력해주세요!")
+        else:
+            with st.spinner("🧠 Gemini가 질문을 분석하고 SQL을 작성 중입니다..."):
                 try:
-                    response = requests.post(
-                        f"{API_URL}/nlquery",
-                        json={
-                            "query": nl_query_input,
-                            "execute": execute_query
-                        },
-                        timeout=60
-                    )
-                    
+                    # Backend API 호출
+                    payload = {
+                        "query": nl_query_input,
+                        "execute": execute_query
+                    }
+                    response = requests.post(f"{API_URL}/nlquery", json=payload, timeout=60)
                     result = response.json()
-                    
-                    if result.get("success"):
+
+                    if response.status_code == 200 and result.get("success"):
+                        
+                        # 1. 생성된 SQL 보여주기
                         st.success("✅ 분석 완료!")
                         
-                        # 추출된 키워드 표시
-                        with st.expander("🔑 추출된 키워드", expanded=True):
-                            keywords = result.get("keywords", {})
-                            
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                if keywords.get("entities"):
-                                    st.markdown("**📊 테이블/엔티티:**")
-                                    for entity in keywords["entities"]:
-                                        st.write(f"- {entity}")
-                            
-                            with col2:
-                                if keywords.get("aggregations"):
-                                    st.markdown("**📈 집계 함수:**")
-                                    for agg in keywords["aggregations"]:
-                                        st.write(f"- {agg['name']} ({agg['function']})")
-                            
-                            with col3:
-                                if keywords.get("time_filters"):
-                                    st.markdown("**📅 시간 필터:**")
-                                    for tf in keywords["time_filters"]:
-                                        st.write(f"- {tf['name']}")
+                        st.subheader("📝 생성된 SQL")
+                        st.code(result.get("generated_sql"), language="sql")
                         
-                        # 생성된 SQL 표시
-                        st.markdown("### 📝 생성된 SQL 쿼리")
-                        
-                        generated_sql = result.get("generated_sql", "")
-                        st.code(generated_sql, language="sql")
-                        
-                        # 설명
-                        if result.get("explanation"):
-                            st.info(f"💡 {result.get('explanation')}")
-                        
-                        # 쿼리 결과 표시 (실행한 경우)
-                        if execute_query and result.get("query_result"):
-                            query_result = result["query_result"]
-                            
-                            st.markdown("---")
-                            st.markdown("### 📊 쿼리 결과")
-                            
-                            if query_result.get("success"):
-                                if query_result.get("data"):
-                                    df = pd.DataFrame(query_result["data"])
-                                    
-                                    st.success(f"✅ {query_result.get('row_count', 0)} 행 조회됨")
-                                    
-                                    # 데이터 프레임 표시
-                                    st.dataframe(df, use_container_width=True)
-                                    
-                                    # 다운로드 버튼
-                                    csv = df.to_csv(index=False).encode('utf-8')
-                                    st.download_button(
-                                        label="📥 CSV 다운로드",
-                                        data=csv,
-                                        file_name="nlquery_result.csv",
-                                        mime="text/csv"
-                                    )
-                                else:
-                                    st.info("결과가 없습니다.")
+                        # 2. 실행 결과 보여주기 (데이터)
+                        if execute_query:
+                            st.subheader("📊 조회 결과")
+                            if result.get("data"):
+                                df = pd.DataFrame(result["data"])
+                                st.dataframe(df, use_container_width=True)
+                                st.caption(f"총 {len(df)}건의 데이터가 조회되었습니다.")
                             else:
-                                st.error(f"❌ 쿼리 실행 실패: {query_result.get('error', '알 수 없는 오류')}")
+                                st.info("조회된 데이터가 없습니다 (0건).")
+
+                        # 3. (옵션) 추론 과정/메타데이터 정보
+                        if show_reasoning or result.get("explanation"):
+                            with st.expander("🧐 AI 분석 리포트 (Reasoning)"):
+                                st.markdown(result.get("explanation", "제공된 설명이 없습니다."))
+                                if result.get("used_tables"):
+                                    st.write("**참조된 테이블:**", result["used_tables"])
+
                     else:
                         st.error(f"❌ 분석 실패: {result.get('error', '알 수 없는 오류')}")
-                        
-                        # 디버깅 정보 표시
-                        if result.get("keywords"):
-                            with st.expander("🔍 디버깅 정보"):
-                                st.json(result.get("keywords"))
-                        
-                except requests.exceptions.Timeout:
-                    st.error("⏱️ 요청 시간 초과 (60초)")
-                except Exception as e:
-                    st.error(f"❌ 오류 발생: {str(e)}")
-        else:
-            st.warning("⚠️ 질문을 입력해주세요!")
-    
-    # Knowledge Graph 정보
-    st.markdown("---")
-    st.markdown("### 📚 Knowledge Graph 정보")
-    
-    with st.expander("지원되는 엔티티 및 별칭"):
-        st.markdown("""
-        **사용자 (user):**
-        - 별칭: 유저, 회원, 플레이어
-        - 컬럼: user_id, user_name, created_at, country
-        
-        **게임 (game):**
-        - 별칭: 게임, 앱, 타이틀
-        - 컬럼: app_id, app_name, genre
-        
-        **구매 (purchase):**
-        - 별칭: 구매, 결제, 매출, 인앱결제
-        - 컬럼: purchase_id, user_id, amount, purchase_date
-        
-        **집계 함수:**
-        - count: 개수, 수, 몇개, 건수
-        - sum: 합계, 총, 전체, 총합
-        - average: 평균, 평균값
-        - max: 최대, 최고, 가장큰
-        - min: 최소, 최저, 가장작은
-        
-        **시간 표현:**
-        - 오늘, 금일, 당일
-        - 어제, 전일
-        - 이번주, 금주
-        - 이번달, 금월, 당월
-        - 지난달, 전월
-        """)
 
+                except requests.exceptions.Timeout:
+                    st.error("⏱️ 서버 응답 시간이 초과되었습니다.")
+                except Exception as e:
+                    st.error(f"❌ 연결 오류: {str(e)}")
+                    
 # 탭 5: 서버 상태
 with tab5:
     st.subheader("📊 서버 상태 확인")
