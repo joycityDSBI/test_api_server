@@ -101,7 +101,7 @@ context_string = parse_schema_to_prompt(full_data)
 try:
     # API 키가 환경변수에 없다면 여기서 설정하거나 에러 발생
     # os.environ["GOOGLE_API_KEY"] = "your_api_key_here" 
-    chain = get_gemini_chain(model_name="gemini-1.5-pro")
+    chain = get_gemini_chain(model_name="gemini-1.5-flash")
     print("✅ Gemini Chain initialized successfully.")
 except Exception as e:
     print(f"❌ Failed to initialize Gemini Chain: {e}")
