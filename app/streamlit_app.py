@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # API 서버 URL
-API_URL = "http://fastapi-app:8000"
+API_URL = "http://app:8000"
 
 # 제목
 st.title("🚀 FastAPI 서버 테스트")
