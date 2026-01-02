@@ -57,6 +57,8 @@ services:
       - app
     volumes:
       - ./app:/app
+    environment:
+      - API_URL=http://app:8000
 
 volumes:
   mysql_data:
