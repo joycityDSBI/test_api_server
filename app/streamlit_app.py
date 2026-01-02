@@ -309,52 +309,71 @@ with tab4:
     st.markdown("---")
 
     # 분석 버튼 클릭 시
-    if analyze_btn:
+if analyze_btn:
         if not nl_query_input.strip():
             st.warning("⚠️ 질문을 입력해주세요!")
         else:
-            with st.spinner("🧠 Gemini가 질문을 분석하고 SQL을 작성 중입니다..."):
+            with st.spinner("🧠 Gemini가 질문을 분석하고 SQL을 작성 중입니다... (최대 2분 소요)"):
                 try:
-                    # Backend API 호출
                     payload = {
                         "query": nl_query_input,
                         "execute": execute_query
                     }
-                    response = requests.post(f"{API_URL}/nlquery", json=payload, timeout=60)
-                    result = response.json()
-
-                    if response.status_code == 200 and result.get("success"):
-                        
-                        # 1. 생성된 SQL 보여주기
-                        st.success("✅ 분석 완료!")
-                        
-                        st.subheader("📝 생성된 SQL")
-                        st.code(result.get("generated_sql"), language="sql")
-                        
-                        # 2. 실행 결과 보여주기 (데이터)
-                        if execute_query:
-                            st.subheader("📊 조회 결과")
-                            if result.get("data"):
-                                df = pd.DataFrame(result["data"])
-                                st.dataframe(df, use_container_width=True)
-                                st.caption(f"총 {len(df)}건의 데이터가 조회되었습니다.")
-                            else:
-                                st.info("조회된 데이터가 없습니다 (0건).")
-
-                        # 3. (옵션) 추론 과정/메타데이터 정보
-                        if show_reasoning or result.get("explanation"):
-                            with st.expander("🧐 AI 분석 리포트 (Reasoning)"):
-                                st.markdown(result.get("explanation", "제공된 설명이 없습니다."))
-                                if result.get("used_tables"):
-                                    st.write("**참조된 테이블:**", result["used_tables"])
-
+                    
+                    # 1. 타임아웃을 60초 -> 120초로 증가
+                    # 2. API 호출
+                    response = requests.post(
+                        f"{API_URL}/nlquery", 
+                        json=payload, 
+                        timeout=120
+                    )
+                    
+                    # 3. HTTP 상태 코드가 200이 아닌 경우 (서버 에러 등) 처리
+                    if response.status_code != 200:
+                        st.error(f"❌ 서버 오류 (Status Code: {response.status_code})")
+                        # 서버가 보낸 에러 메시지 상세 출력
+                        with st.expander("🔍 상세 에러 로그 보기"):
+                            st.text(response.text)
                     else:
-                        st.error(f"❌ 분석 실패: {result.get('error', '알 수 없는 오류')}")
+                        result = response.json()
 
+                        if result.get("success"):
+                            st.success("✅ 분석 완료!")
+                            
+                            st.subheader("📝 생성된 SQL")
+                            st.code(result.get("generated_sql"), language="sql")
+                            
+                            if execute_query:
+                                st.subheader("📊 조회 결과")
+                                if result.get("data"):
+                                    df = pd.DataFrame(result["data"])
+                                    st.dataframe(df, use_container_width=True)
+                                else:
+                                    st.info("조회된 데이터가 없습니다 (0건).")
+                            
+                            if show_reasoning:
+                                with st.expander("AI 분석 리포트"):
+                                    st.write(result.get("explanation"))
+                        else:
+                            # 로직상 실패 (success: False)
+                            st.error(f"❌ 분석 실패: {result.get('error')}")
+                            if result.get("traceback"):
+                                with st.expander("🛠 디버깅용 Traceback"):
+                                    st.code(result.get("traceback"))
+
+                # 4. 예외 처리 세분화
                 except requests.exceptions.Timeout:
-                    st.error("⏱️ 서버 응답 시간이 초과되었습니다.")
+                    st.error("⏱️ 요청 시간 초과 (120초 경과)")
+                    st.warning("팁: 질문이 너무 복잡하거나, LLM 응답이 늦어지고 있습니다.")
+                
+                except requests.exceptions.ConnectionError:
+                    st.error(f"🔌 서버 연결 실패: {API_URL}")
+                    st.info("FastAPI 서버가 켜져 있는지, 올바른 주소인지 확인하세요.")
+                    
                 except Exception as e:
-                    st.error(f"❌ 연결 오류: {str(e)}")
+                    st.error(f"❌ 알 수 없는 클라이언트 오류 발생")
+                    with st.expander("상세 오류 내용"):
+                        st.write(str(e))
                     
 # 탭 5: 서버 상태
 with tab5:

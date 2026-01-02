@@ -6,12 +6,19 @@ from pydantic import BaseModel
 import time
 import os
 from app.knowledge_graph.llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain
+import logging
+import traceback
 
 app = FastAPI(
     title="FastAPI Server",
     description="GCP Compute Engine 기반 FastAPI 서버",
     version="1.0.0"
 )
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 @app.on_event("startup")
 def startup():
@@ -107,35 +114,51 @@ class QueryRequest(BaseModel):
 
 @app.post("/nlquery")
 async def process_nl_query(request: QueryRequest):
+    # 1. 체인 초기화 확인
     if not chain:
-        raise HTTPException(status_code=500, detail="LLM Chain is not initialized.")
+        logger.error("LLM Chain is NOT initialized.")
+        return {
+            "success": False, 
+            "error": "LLM Chain이 초기화되지 않았습니다. API Key 설정을 확인하세요."
+        }
 
     try:
-        # 1. LLM 실행 (context와 질문 주입)
+        logger.info(f"Received query: {request.query}") # 로그 남기기
+
+        # 2. LLM 실행
         generated_sql = chain.invoke({
             "context": context_string,
             "question": request.query
         })
         
-        # 2. 결과 전처리 (가끔 마크다운이 붙어나올 경우 제거)
+        logger.info("SQL Generated successfully.") # 성공 로그
+
         cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
         
         response_data = {
             "success": True,
             "generated_sql": cleaned_sql,
             "data": [],
-            "explanation": "Generated based on YAML schema."
+            "explanation": "YAML schema based generation"
         }
 
-        # 3. (옵션) 실제 DB 조회 로직
         if request.execute:
-            # 여기에 실제 BigQuery 연동 코드를 넣으시면 됩니다.
-            # 지금은 테스트용 더미 데이터 반환
-            response_data["data"] = [
-                {"game": "Dummy Game", "login_count": 1234, "date": "2024-05-20"}
-            ]
+            # DB 조회 로직 (가정)
+            # raise ValueError("DB 연결 테스트 에러") # 테스트용 강제 에러
+            response_data["data"] = [{"test": "data"}]
 
         return response_data
 
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        # 3. 에러 발생 시 상세 정보 캡처
+        error_msg = str(e)
+        error_trace = traceback.format_exc() # 에러의 상세 위치를 문자열로 가져옴
+        
+        logger.error(f"Error processing query: {error_msg}")
+        logger.error(error_trace) # 서버 콘솔에도 출력
+
+        return {
+            "success": False, 
+            "error": error_msg,     # 간단한 에러 메시지
+            "traceback": error_trace # 상세 스택 트레이스 (프론트엔드로 전송)
+        }
