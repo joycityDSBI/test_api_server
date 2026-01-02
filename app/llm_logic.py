@@ -64,7 +64,7 @@ def parse_schema_to_prompt(data):
     return prompt_context
 
 # 3. [핵심] Gemini Chain 생성 함수
-def get_gemini_chain(model_name="gemini-1.5-pro"):
+def get_gemini_chain(model_name="gemini-1.5-flash"):
     """
     Gemini 모델과 프롬프트를 결합하여 LangChain 실행 체인을 반환합니다.
     """
@@ -76,7 +76,7 @@ def get_gemini_chain(model_name="gemini-1.5-pro"):
 
     # 1. 모델 초기화 (SQL 생성은 temperature=0 권장)
     llm = ChatGoogleGenerativeAI(
-        model=model_name,
+        model=model_name, 
         temperature=0,
         convert_system_message_to_human=True
     )
