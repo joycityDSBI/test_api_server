@@ -2,7 +2,7 @@ import os
 import glob
 import yaml
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 # 1. YAML 파일 병합 함수
