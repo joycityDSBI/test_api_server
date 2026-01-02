@@ -15,3 +15,5 @@ pyyaml==6.0.2
 langchain-google-genai==4.1.2
 langchain==1.2.0
 langchain-core==1.2.5
+langchain-community
+google.generativeai
