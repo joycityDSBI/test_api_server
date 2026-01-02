@@ -5,7 +5,7 @@ from database import get_db, engine, Base
 from pydantic import BaseModel
 import time
 import os
-from app.knowledge_graph.llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain
+from llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain
 import logging
 import traceback
 
