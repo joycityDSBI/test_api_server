@@ -135,8 +135,22 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
         
         logger.info("SQL Generated successfully.") # 성공 로그
 
+        # 1. 마크다운 기호 제거
         cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
 
+        # ▼▼▼ [추가] 2. 특수문자 및 백틱 강제 보정 로직 ▼▼▼
+
+        # 2-1. 수학 기호(≥, ≤)를 SQL 연산자(>=, <=)로 변환
+        cleaned_sql = cleaned_sql.replace("≥", ">=").replace("≤", "<=")
+
+        # 2-2. 하이픈(-)이 들어간 프로젝트 ID에 백틱 강제 적용
+        # (이미 백틱이 있으면 놔두고, 없으면 감싸줌)
+        project_id = "datahub-478802"
+        if project_id in cleaned_sql and f"`{project_id}`" not in cleaned_sql:
+            cleaned_sql = cleaned_sql.replace(project_id, f"`{project_id}`")
+
+        print(f"▶️ [DEBUG] Final SQL to DB: {cleaned_sql}") # 최종 쿼리 확인용
+        
         # ▼▼▼ [로직 추가] DB에 로그 저장 ▼▼▼
         try:
             log_entry = QueryLog(
