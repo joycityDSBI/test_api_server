@@ -179,3 +179,9 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
             "error": error_msg,     # 간단한 에러 메시지
             "traceback": error_trace # 상세 스택 트레이스 (프론트엔드로 전송)
         }
+    
+@app.get("/logs")
+def get_query_logs(limit: int = 10, db: Session = Depends(get_db)):
+    """최신 쿼리 로그 N개를 조회합니다."""
+    logs = db.query(QueryLog).order_by(QueryLog.id.desc()).limit(limit).all()
+    return logs

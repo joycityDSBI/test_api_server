@@ -19,12 +19,13 @@ st.title("🚀 FastAPI 서버 테스트")
 st.markdown("---")
 
 # 탭 생성
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📝 텍스트 입력", 
     "🔢 정수 연산", 
     "🔍 BigQuery SQL", 
     "🤖 자연어 쿼리",
-    "📊 서버 상태"
+    "📊 서버 상태",
+    "📜 쿼리 로그"
 ])
 
 # 탭 1: 기본 텍스트 입력
@@ -456,3 +457,26 @@ with tab5:
     st.markdown("---")
     st.markdown("### 📖 API 문서")
     st.markdown(f"Swagger UI: [{API_URL}/docs]({API_URL}/docs)")
+
+with tab6:
+    st.subheader("📜 자연어 질의 기록")
+    
+    if st.button("🔄 새로고침", key="refresh_logs"):
+        try:
+            response = requests.get(f"{API_URL}/logs", params={"limit": 20})
+            if response.status_code == 200:
+                logs = response.json()
+                if logs:
+                    df = pd.DataFrame(logs)
+                    # 보기 좋게 컬럼 순서 조정 및 리네임
+                    st.dataframe(
+                        df[["id", "user_id", "question", "generated_sql", "created_at"]],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info("저장된 기록이 없습니다.")
+            else:
+                st.error("로그를 불러오지 못했습니다.")
+        except Exception as e:
+            st.error(f"연결 오류: {e}")
