@@ -235,21 +235,25 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                         
                         logger.info("Generating explanation using LLM...")
                         
-                        # 방법 A: chain 객체 내의 llm 모델을 직접 호출 (가장 추천)
-                        # (langchain 버전에 따라 chain.llm 또는 chain.model 등으로 접근)
-                        analysis_response = chain.llm.invoke(analysis_prompt)
-                        
-                        # invoke 결과가 객체(AIMessage)일 경우 .content로 텍스트 추출
-                        if hasattr(analysis_response, 'content'):
+                        try:
+                            # 1. 분석을 위한 LLM 모델을 별도로 정의 (확실한 호출을 위해)
+                            # (SQL 생성에 썼던 모델과 같은 모델을 씁니다)
+                            # API KEY는 이미 환경변수에 있다고 가정합니다.
+                            analysis_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+                            
+                            # 2. invoke 호출
+                            analysis_response = analysis_llm.invoke(analysis_prompt)
+                            
+                            # 3. 결과 텍스트 추출 (.content 속성 사용)
                             explanation_text = analysis_response.content
-                        else:
-                            explanation_text = str(analysis_response)
-
-                        response_data["explanation"] = explanation_text
-                        print(f"✅ Explanation Generated: {explanation_text[:50]}...")
-
-                    else:
-                        response_data["explanation"] = "조건에 맞는 데이터가 조회되지 않았습니다 (0건)."
+                            
+                            response_data["explanation"] = explanation_text
+                            print(f"✅ Explanation Generated: {explanation_text[:50]}...")
+                            
+                        except Exception as llm_e:
+                            # 분석 단계에서 에러가 나더라도, 표 데이터는 보여줘야 하므로 에러만 찍고 넘어감
+                            print(f"⚠️ Analysis Failed: {llm_e}")
+                            response_data["explanation"] = "데이터는 조회되었으나, AI 분석 생성 중 오류가 발생했습니다."
                 # ▲▲▲ [수정된 부분 끝] 실제 DB 조회 로직 ▲▲▲
             except Exception as execution_error:
                 print(f"🚨 [ERROR] BigQuery Execution Failed: {execution_error}")
