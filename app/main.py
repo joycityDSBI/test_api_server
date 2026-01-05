@@ -185,31 +185,70 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
             try:
                 # ▼▼▼ [수정된 부분 시작] 실제 DB 조회 로직 ▼▼▼
                 print(f"▶️ [DEBUG] Executing SQL: {cleaned_sql}")  # 1. SQL 확인
-                
-                # ▼▼▼ [수정 핵심] MySQL(db) 대신 BigQuery Client 사용 ▼▼▼
-            
-                # 1. BigQuery 클라이언트 생성
-                # (Docker 환경변수로 GOOGLE_APPLICATION_CREDENTIALS 설정 필요)
                 bq_client = bigquery.Client() 
-                
-                # 2. 쿼리 실행
                 query_job = bq_client.query(cleaned_sql)
                 results = query_job.result()  # 결과 대기 (RowIterator 반환)
                 
                 # 3. 컬럼명 추출
-                # BigQuery RowIterator의 schema 속성 사용
                 columns = [field.name for field in results.schema]
                 response_data["columns"] = columns
                 print(f"▶️ [DEBUG] BigQuery Columns: {columns}")
 
-                # 4. 데이터 추출
                 # RowIterator를 dict list로 변환
                 rows = [dict(row) for row in results]
                 response_data["data"] = rows
                 print(f"▶️ [DEBUG] BigQuery Rows count: {len(rows)}")
-                
-                # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
+                if rows:
+                # 2-1. 토큰 절약을 위해 데이터 샘플링 (최대 50건만 LLM에게 전달)
+                # 데이터가 너무 많으면 "이하 생략" 처리
+                    data_preview = rows[:50] 
+                    data_context = str(data_preview)
+                    if len(rows) > 50:
+                        data_context += f"\n... (총 {len(rows)}건 중 상위 50건만 표시)"
+
+                        # 2-2. 해석을 위한 프롬프트 구성
+                        analysis_prompt = f"""
+                        당신은 데이터 분석가입니다. 아래 '사용자 질문'과 '조회된 데이터'를 보고, 
+                        사용자가 이해하기 쉽게 핵심 인사이트를 요약해서 답변해주세요.
+                        
+                        [상황 정보]
+                        - 사용자 질문: {request.query}
+                        - 실행된 SQL: {cleaned_sql}
+                        
+                        [조회된 데이터]
+                        {data_context}
+                        
+                        [지침]
+                        1. 데이터가 비어있지 않다면, 구체적인 수치를 인용해서 답변하세요. (예: "총 135명입니다.")
+                        2. 데이터가 날짜별 추세라면, 증가/감소 추세를 언급하세요.
+                        3. SQL 문법 설명보다는 '데이터 결과' 자체에 집중해서 비즈니스 관점으로 답변하세요.
+                        4. 한국어로 정중하게 답변하세요.
+                        """
+
+                        # 2-3. LLM 호출 (기존 chain 객체의 llm 모델을 재사용하거나, chain.invoke 사용)
+                        # 만약 기존 'chain'이 PromptTemplate에 묶여 있다면, 
+                        # 여기서 단순히 llm 모델 객체(ChatGoogleGenerativeAI 등)를 직접 호출하는 게 편합니다.
+                        # 편의상 기존 chain.llm 을 사용한다고 가정합니다.
+                        
+                        logger.info("Generating explanation using LLM...")
+                        
+                        # 방법 A: chain 객체 내의 llm 모델을 직접 호출 (가장 추천)
+                        # (langchain 버전에 따라 chain.llm 또는 chain.model 등으로 접근)
+                        analysis_response = chain.llm.invoke(analysis_prompt)
+                        
+                        # invoke 결과가 객체(AIMessage)일 경우 .content로 텍스트 추출
+                        if hasattr(analysis_response, 'content'):
+                            explanation_text = analysis_response.content
+                        else:
+                            explanation_text = str(analysis_response)
+
+                        response_data["explanation"] = explanation_text
+                        print(f"✅ Explanation Generated: {explanation_text[:50]}...")
+
+                    else:
+                        response_data["explanation"] = "조건에 맞는 데이터가 조회되지 않았습니다 (0건)."
+                # ▲▲▲ [수정된 부분 끝] 실제 DB 조회 로직 ▲▲▲
             except Exception as execution_error:
                 print(f"🚨 [ERROR] BigQuery Execution Failed: {execution_error}")
                 print(traceback.format_exc())
