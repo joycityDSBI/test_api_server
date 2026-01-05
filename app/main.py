@@ -157,13 +157,37 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
             "success": True,
             "generated_sql": cleaned_sql,
             "data": [],
+            "columns": [], # 👈 빈 리스트로 초기화
             "explanation": "YAML schema based generation"
         }
 
         if request.execute:
-            # DB 조회 로직 (가정)
-            # raise ValueError("DB 연결 테스트 에러") # 테스트용 강제 에러
-            response_data["data"] = [{"test": "data"}]
+            try:
+                # ▼▼▼ [수정된 부분 시작] 실제 DB 조회 로직 ▼▼▼
+                
+                # 1. SQL 실행 (text 함수로 감싸야 함)
+                result_proxy = db.execute(text(cleaned_sql))
+                
+                # 2. 컬럼명(Header) 추출
+                # SQLAlchemy 결과 객체에서 keys()를 통해 컬럼명을 가져옵니다.
+                columns = list(result_proxy.keys())
+                response_data["columns"] = columns
+
+                # 3. 데이터 추출 (Dictionary List 형태로 변환)
+                # mappings()를 사용하면 결과를 {컬럼: 값} 형태로 쉽게 변환 가능합니다.
+                rows = result_proxy.mappings().all()
+                
+                # 날짜/시간 타입 등이 있을 경우 JSON 직렬화를 위해 문자열로 변환이 필요할 수도 있음
+                # 여기서는 단순 dict 변환만 수행
+                response_data["data"] = [dict(row) for row in rows]
+                
+                # ▲▲▲ [수정된 부분 끝] ▲▲▲
+
+            except Exception as execution_error:
+                logger.error(f"SQL Execution Failed: {execution_error}")
+                response_data["data"] = []
+                response_data["error"] = f"SQL 실행 중 오류 발생: {str(execution_error)}"
+                # 쿼리는 생성됐으나 실행만 실패한 경우 success는 True로 유지하거나 상황에 따라 False로 변경
 
         return response_data
 

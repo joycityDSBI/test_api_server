@@ -353,7 +353,15 @@ if analyze_btn:
                             if execute_query:
                                 st.subheader("📊 조회 결과")
                                 if result.get("data"):
-                                    df = pd.DataFrame(result["data"])
+                                    # 1. API 응답에 'columns' 키가 있는지 확인하여 DataFrame 생성 시 반영
+                                    columns = result.get("columns") 
+                                    
+                                    if columns:
+                                        df = pd.DataFrame(result["data"], columns=columns)
+                                    else:
+                                        # 컬럼 정보가 없으면 데이터만 출력 (리스트 딕셔너리 형태라면 자동 처리됨)
+                                        df = pd.DataFrame(result["data"])
+
                                     st.dataframe(df, use_container_width=True)
                                 else:
                                     st.info("조회된 데이터가 없습니다 (0건).")
