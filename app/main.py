@@ -121,12 +121,9 @@ class QueryRequest(BaseModel):
 @app.post("/nlquery")
 async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db)):
     # 1. 체인 초기화 확인
+
     if not chain:
-        logger.error("LLM Chain is NOT initialized.")
-        return {
-            "success": False, 
-            "error": "LLM Chain이 초기화되지 않았습니다. API Key 설정을 확인하세요."
-        }
+         return {"success": False, "error": "Chain not initialized"}
 
     try:
         logger.info(f"Received query: {request.query}") # 로그 남기기
@@ -204,56 +201,61 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                 if rows:
                 # 2-1. 토큰 절약을 위해 데이터 샘플링 (최대 50건만 LLM에게 전달)
                 # 데이터가 너무 많으면 "이하 생략" 처리
+                    print("▶️ [DEBUG] Starting LLM Analysis...") # 👈 이 로그가 찍히는지 확인 중요
+                    
                     data_preview = rows[:50] 
                     data_context = str(data_preview)
                     if len(rows) > 50:
                         data_context += f"\n... (총 {len(rows)}건 중 상위 50건만 표시)"
 
-                        # 2-2. 해석을 위한 프롬프트 구성
-                        analysis_prompt = f"""
-                        당신은 데이터 분석가입니다. 아래 '사용자 질문'과 '조회된 데이터'를 보고, 
-                        사용자가 이해하기 쉽게 핵심 인사이트를 요약해서 답변해주세요.
-                        
-                        [상황 정보]
-                        - 사용자 질문: {request.query}
-                        - 실행된 SQL: {cleaned_sql}
-                        
-                        [조회된 데이터]
-                        {data_context}
-                        
-                        [지침]
-                        1. 데이터가 비어있지 않다면, 구체적인 수치를 인용해서 답변하세요. (예: "총 135명입니다.")
-                        2. 데이터가 날짜별 추세라면, 증가/감소 추세를 언급하세요.
-                        3. SQL 문법 설명보다는 '데이터 결과' 자체에 집중해서 비즈니스 관점으로 답변하세요.
-                        4. 한국어로 정중하게 답변하세요.
-                        """
+                    # 2-2. 해석을 위한 프롬프트 구성
+                    analysis_prompt = f"""
+                    당신은 데이터 분석가입니다. 아래 '사용자 질문'과 '조회된 데이터'를 보고, 
+                    사용자가 이해하기 쉽게 핵심 인사이트를 요약해서 답변해주세요.
+                    
+                    [상황 정보]
+                    - 사용자 질문: {request.query}
+                    - 실행된 SQL: {cleaned_sql}
+                    
+                    [조회된 데이터]
+                    {data_context}
+                    
+                    [지침]
+                    1. 데이터가 비어있지 않다면, 구체적인 수치를 인용해서 답변하세요. (예: "총 135명입니다.")
+                    2. 데이터가 날짜별 추세라면, 증가/감소 추세를 언급하세요.
+                    3. SQL 문법 설명보다는 '데이터 결과' 자체에 집중해서 비즈니스 관점으로 답변하세요.
+                    4. 한국어로 정중하게 답변하세요.
+                    """
 
-                        # 2-3. LLM 호출 (기존 chain 객체의 llm 모델을 재사용하거나, chain.invoke 사용)
-                        # 만약 기존 'chain'이 PromptTemplate에 묶여 있다면, 
-                        # 여기서 단순히 llm 모델 객체(ChatGoogleGenerativeAI 등)를 직접 호출하는 게 편합니다.
-                        # 편의상 기존 chain.llm 을 사용한다고 가정합니다.
+                    # 2-3. LLM 호출 (기존 chain 객체의 llm 모델을 재사용하거나, chain.invoke 사용)
+                    # 만약 기존 'chain'이 PromptTemplate에 묶여 있다면, 
+                    # 여기서 단순히 llm 모델 객체(ChatGoogleGenerativeAI 등)를 직접 호출하는 게 편합니다.
+                    # 편의상 기존 chain.llm 을 사용한다고 가정합니다.
                         
-                        logger.info("Generating explanation using LLM...")
+                    logger.info("Generating explanation using LLM...")
                         
-                        try:
-                            # 1. 분석을 위한 LLM 모델을 별도로 정의 (확실한 호출을 위해)
-                            # (SQL 생성에 썼던 모델과 같은 모델을 씁니다)
-                            # API KEY는 이미 환경변수에 있다고 가정합니다.
-                            analysis_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-                            
-                            # 2. invoke 호출
-                            analysis_response = analysis_llm.invoke(analysis_prompt)
-                            
-                            # 3. 결과 텍스트 추출 (.content 속성 사용)
-                            explanation_text = analysis_response.content
-                            
-                            response_data["explanation"] = explanation_text
-                            print(f"✅ Explanation Generated: {explanation_text[:50]}...")
-                            
-                        except Exception as llm_e:
-                            # 분석 단계에서 에러가 나더라도, 표 데이터는 보여줘야 하므로 에러만 찍고 넘어감
-                            print(f"⚠️ Analysis Failed: {llm_e}")
-                            response_data["explanation"] = "데이터는 조회되었으나, AI 분석 생성 중 오류가 발생했습니다."
+                    try:
+                        # 1. 분석을 위한 LLM 모델을 별도로 정의 (확실한 호출을 위해)
+                        # (SQL 생성에 썼던 모델과 같은 모델을 씁니다)
+                        # API KEY는 이미 환경변수에 있다고 가정합니다.
+                        analysis_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+                        
+                        # 2. invoke 호출
+                        analysis_response = analysis_llm.invoke(analysis_prompt)
+                        explanation_text = analysis_response.content
+                        
+                        response_data["explanation"] = explanation_text
+                        print(f"✅ Explanation Generated: {explanation_text[:50]}...")
+                        
+                    except Exception as llm_e:
+                        # 분석 단계에서 에러가 나더라도, 표 데이터는 보여줘야 하므로 에러만 찍고 넘어감
+                        print(f"🚨 [ERROR] LLM Analysis Failed: {llm_e}")
+                        print(traceback.format_exc()) # 상세 에러 출력
+                        response_data["explanation"] = f"AI 분석 중 오류 발생: {str(llm_e)}"
+
+                else:
+                    print("▶️ [DEBUG] No rows found. Skipping analysis.")
+                    response_data["explanation"] = "조건에 맞는 데이터가 없습니다 (0건)."
                 # ▲▲▲ [수정된 부분 끝] 실제 DB 조회 로직 ▲▲▲
             except Exception as execution_error:
                 print(f"🚨 [ERROR] BigQuery Execution Failed: {execution_error}")
