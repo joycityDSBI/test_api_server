@@ -9,6 +9,7 @@ from llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_c
 import logging
 import traceback
 from google.cloud import bigquery
+import re
 
 app = FastAPI(
     title="FastAPI Server",
@@ -136,19 +137,23 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
         
         logger.info("SQL Generated successfully.") # 성공 로그
 
-        # 1. 마크다운 기호 제거
-        cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
-
+        # 1. 마크다운 제거
         cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
         cleaned_sql = cleaned_sql.replace("≥", ">=").replace("≤", "<=")
+
+        # ▼▼▼ [수정된 부분] 정규표현식으로 테이블 경로 강제 교정 ▼▼▼
         
-        target_project = "datahub-478802"
+        # 설명: 
+        # 1. `? : 백틱이 있을 수도 있고 없을 수도 있음
+        # 2. datahub-478802 : 프로젝트 ID
+        # 3. \. : 점(.)
+        # 4. (\w+) : 테이블 이름 (캡처 그룹)
+        # 5. `? : 끝에 백틱이 또 있을 수도 있음 (이걸 제거하는 게 핵심)
         
-        # 백틱 초기화 후 다시 감싸기 (BigQuery 문법 준수)
-        cleaned_sql = cleaned_sql.replace(f"`{target_project}`", target_project)
-        cleaned_sql = cleaned_sql.replace(f"``{target_project}``", target_project)
-        cleaned_sql = cleaned_sql.replace(target_project, f"`{target_project}`")
-        cleaned_sql = cleaned_sql.replace("``", "`")
+        pattern = r"`?datahub-478802`?\.`?datahub`?\.`?(\w+)`?"
+        
+        # 매칭된 부분을 "`datahub-478802`.datahub.테이블명" 형태로 싹 바꿔치기
+        cleaned_sql = re.sub(pattern, r"`datahub-478802`.datahub.\1", cleaned_sql)
 
         print(f"▶️ [DEBUG] Final SQL to DB: {cleaned_sql}") # 최종 쿼리 확인용
 
