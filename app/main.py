@@ -164,6 +164,7 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
         if request.execute:
             try:
                 # ▼▼▼ [수정된 부분 시작] 실제 DB 조회 로직 ▼▼▼
+                print(f"▶️ [DEBUG] Executing SQL: {cleaned_sql}")  # 1. SQL 확인
                 
                 # 1. SQL 실행 (text 함수로 감싸야 함)
                 result_proxy = db.execute(text(cleaned_sql))
@@ -172,10 +173,12 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                 # SQLAlchemy 결과 객체에서 keys()를 통해 컬럼명을 가져옵니다.
                 columns = list(result_proxy.keys())
                 response_data["columns"] = columns
+                print(f"▶️ [DEBUG] Columns found: {columns}")      # 2. 컬럼 확인
 
                 # 3. 데이터 추출 (Dictionary List 형태로 변환)
                 # mappings()를 사용하면 결과를 {컬럼: 값} 형태로 쉽게 변환 가능합니다.
                 rows = result_proxy.mappings().all()
+                print(f"▶️ [DEBUG] Rows count: {len(rows)}")      # 3. 데이터 개수 확인
                 
                 # 날짜/시간 타입 등이 있을 경우 JSON 직렬화를 위해 문자열로 변환이 필요할 수도 있음
                 # 여기서는 단순 dict 변환만 수행
@@ -184,10 +187,13 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                 # ▲▲▲ [수정된 부분 끝] ▲▲▲
 
             except Exception as execution_error:
-                logger.error(f"SQL Execution Failed: {execution_error}")
+                # 여기가 실행된다면 SQL 문법이나 DB 연결 문제임
+                print(f"🚨 [ERROR] SQL Execution Failed: {execution_error}") # 4. 에러 로그 출력
+                print(traceback.format_exc()) # 상세 에러 위치 출력
+                
                 response_data["data"] = []
-                response_data["error"] = f"SQL 실행 중 오류 발생: {str(execution_error)}"
-                # 쿼리는 생성됐으나 실행만 실패한 경우 success는 True로 유지하거나 상황에 따라 False로 변경
+                # 프론트엔드에서 알 수 있게 에러 메시지 담기
+                response_data["db_error"] = str(execution_error)
 
         return response_data
 
