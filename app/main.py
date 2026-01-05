@@ -112,6 +112,7 @@ except Exception as e:
 class QueryRequest(BaseModel):
     query: str
     execute: bool = True
+    user_id: str = "anonymous" 
 
 @app.post("/nlquery")
 async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db)):
