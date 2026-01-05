@@ -178,7 +178,7 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
             "generated_sql": cleaned_sql,
             "data": [],
             "columns": [], # 👈 빈 리스트로 초기화
-            "explanation": "YAML schema based generation"
+            "explanation": "데이터 조회 후 분석 대기 중..."
         }
 
         if request.execute:

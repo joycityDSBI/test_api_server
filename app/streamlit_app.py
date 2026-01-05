@@ -371,9 +371,14 @@ if analyze_btn:
                                 else:
                                     st.info("조회된 데이터가 없습니다 (0건).")
                             
-                            if show_reasoning:
-                                with st.expander("AI 분석 리포트"):
-                                    st.write(result.get("explanation"))
+                            if result.get("explanation"):
+                                st.markdown("### 💡 AI 데이터 분석")
+                                st.info(result.get("explanation"))  # 파란색 박스로 강조
+                                
+                                # (선택사항) 디버깅용 정보만 expander로 숨김
+                                if show_reasoning:
+                                    with st.expander("🛠 상세 과정 보기 (SQL 등)"):
+                                        st.write(f"사용된 SQL: {result.get('generated_sql')}")
                         else:
                             # 로직상 실패 (success: False)
                             st.error(f"❌ 분석 실패: {result.get('error')}")
