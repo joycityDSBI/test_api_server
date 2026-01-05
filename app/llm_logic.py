@@ -93,6 +93,9 @@ def get_gemini_chain(model_name="gemini-2.5-flash"):
     1. Use ONLY the tables and columns defined in the Context.
     2. Do NOT use markdown formatting (no ```sql or ```).
     3. Return ONLY the SQL query string.
+    4. 테이블 이름, 데이터베이스 이름, 컬럼 이름은 반드시 백틱(`)으로 감싸주세요.
+    예: `datahub-478802`.`datahub`.`f_common_access`
+    5. 특히 이름에 하이픈(-)이 포함된 경우 백틱은 필수입니다.
     """
 
     # 3. 프롬프트 템플릿 결합
