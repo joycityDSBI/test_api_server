@@ -10,6 +10,8 @@ import logging
 import traceback
 from google.cloud import bigquery
 import re
+from langchain_google_genai import ChatGoogleGenerativeAI
+
 
 app = FastAPI(
     title="FastAPI Server",
