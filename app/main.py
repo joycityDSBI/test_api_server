@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from database import get_db, engine, Base
+from database import get_db, engine, Base, init_db, QueryLog
 from pydantic import BaseModel
 import time
 import os
@@ -59,6 +59,7 @@ from bigquery_service import bq_service
 
 class QueryRequest(BaseModel):
     query: str
+    user_id: str = "anonymous"  # [추가] 기본값은 익명
     max_results: int = 100
 
 @app.post("/bigquery/query")
@@ -113,7 +114,7 @@ class QueryRequest(BaseModel):
     execute: bool = True
 
 @app.post("/nlquery")
-async def process_nl_query(request: QueryRequest):
+async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db)):
     # 1. 체인 초기화 확인
     if not chain:
         logger.error("LLM Chain is NOT initialized.")
@@ -134,6 +135,22 @@ async def process_nl_query(request: QueryRequest):
         logger.info("SQL Generated successfully.") # 성공 로그
 
         cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
+
+        # ▼▼▼ [로직 추가] DB에 로그 저장 ▼▼▼
+        try:
+            log_entry = QueryLog(
+                user_id=request.user_id,
+                question=request.query,
+                generated_sql=cleaned_sql
+            )
+            db.add(log_entry)
+            db.commit() # 저장 확정
+            db.refresh(log_entry) # ID 등 갱신
+            print(f"✅ Query logged to DB (ID: {log_entry.id})")
+        except Exception as db_e:
+            print(f"⚠️ Failed to save log: {db_e}")
+            # 로그 저장이 실패해도 사용자에게 응답은 가도록 pass 처리하거나 에러 로깅
+        # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
         
         response_data = {
             "success": True,

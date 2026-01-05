@@ -280,6 +280,12 @@ with tab3:
 # 탭 4: 자연어 쿼리 (Gemini + YAML 기반)
 with tab4:
     st.subheader("🤖 AI 데이터 분석가")
+
+    # [추가] 사용자 ID 입력 (실제 서비스에서는 로그인 세션 정보 사용)
+    with st.expander("👤 사용자 설정", expanded=False):
+        current_user_id = st.text_input("사용자 ID (Log 저장용)", value="test_user_01")
+
+    col1, col2 = st.columns([2, 1])
     
     st.markdown("""
     <div style='background-color: #f0f2f6; padding: 10px; border-radius: 5px; margin-bottom: 20px;'>
@@ -288,8 +294,6 @@ with tab4:
         예: <em>"지난달 캐리비안의 해적 접속 유저 수 알려줘"</em>
     </div>
     """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns([2, 1])
 
     with col1:
         nl_query_input = st.text_area(
@@ -318,7 +322,8 @@ if analyze_btn:
                 try:
                     payload = {
                         "query": nl_query_input,
-                        "execute": execute_query
+                        "execute": execute_query,
+                        "user_id": current_user_id # API로 전송
                     }
                     
                     # 1. 타임아웃을 60초 -> 120초로 증가
