@@ -8,6 +8,7 @@ import os
 from llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain
 import logging
 import traceback
+from google.cloud import bigquery
 
 app = FastAPI(
     title="FastAPI Server",
@@ -138,19 +139,19 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
         # 1. 마크다운 기호 제거
         cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
 
-        # ▼▼▼ [추가] 2. 특수문자 및 백틱 강제 보정 로직 ▼▼▼
-
-        # 2-1. 수학 기호(≥, ≤)를 SQL 연산자(>=, <=)로 변환
+        cleaned_sql = generated_sql.replace("```sql", "").replace("```", "").strip()
         cleaned_sql = cleaned_sql.replace("≥", ">=").replace("≤", "<=")
-
-        # 2-2. 하이픈(-)이 들어간 프로젝트 ID에 백틱 강제 적용
-        # (이미 백틱이 있으면 놔두고, 없으면 감싸줌)
-        project_id = "datahub-478802"
-        if project_id in cleaned_sql and f"`{project_id}`" not in cleaned_sql:
-            cleaned_sql = cleaned_sql.replace(project_id, f"`{project_id}`")
+        
+        target_project = "datahub-478802"
+        
+        # 백틱 초기화 후 다시 감싸기 (BigQuery 문법 준수)
+        cleaned_sql = cleaned_sql.replace(f"`{target_project}`", target_project)
+        cleaned_sql = cleaned_sql.replace(f"``{target_project}``", target_project)
+        cleaned_sql = cleaned_sql.replace(target_project, f"`{target_project}`")
+        cleaned_sql = cleaned_sql.replace("``", "`")
 
         print(f"▶️ [DEBUG] Final SQL to DB: {cleaned_sql}") # 최종 쿼리 확인용
-        
+
         # ▼▼▼ [로직 추가] DB에 로그 저장 ▼▼▼
         try:
             log_entry = QueryLog(
@@ -180,33 +181,34 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                 # ▼▼▼ [수정된 부분 시작] 실제 DB 조회 로직 ▼▼▼
                 print(f"▶️ [DEBUG] Executing SQL: {cleaned_sql}")  # 1. SQL 확인
                 
-                # 1. SQL 실행 (text 함수로 감싸야 함)
-                result_proxy = db.execute(text(cleaned_sql))
+                # ▼▼▼ [수정 핵심] MySQL(db) 대신 BigQuery Client 사용 ▼▼▼
+            
+                # 1. BigQuery 클라이언트 생성
+                # (Docker 환경변수로 GOOGLE_APPLICATION_CREDENTIALS 설정 필요)
+                bq_client = bigquery.Client() 
                 
-                # 2. 컬럼명(Header) 추출
-                # SQLAlchemy 결과 객체에서 keys()를 통해 컬럼명을 가져옵니다.
-                columns = list(result_proxy.keys())
+                # 2. 쿼리 실행
+                query_job = bq_client.query(cleaned_sql)
+                results = query_job.result()  # 결과 대기 (RowIterator 반환)
+                
+                # 3. 컬럼명 추출
+                # BigQuery RowIterator의 schema 속성 사용
+                columns = [field.name for field in results.schema]
                 response_data["columns"] = columns
-                print(f"▶️ [DEBUG] Columns found: {columns}")      # 2. 컬럼 확인
+                print(f"▶️ [DEBUG] BigQuery Columns: {columns}")
 
-                # 3. 데이터 추출 (Dictionary List 형태로 변환)
-                # mappings()를 사용하면 결과를 {컬럼: 값} 형태로 쉽게 변환 가능합니다.
-                rows = result_proxy.mappings().all()
-                print(f"▶️ [DEBUG] Rows count: {len(rows)}")      # 3. 데이터 개수 확인
+                # 4. 데이터 추출
+                # RowIterator를 dict list로 변환
+                rows = [dict(row) for row in results]
+                response_data["data"] = rows
+                print(f"▶️ [DEBUG] BigQuery Rows count: {len(rows)}")
                 
-                # 날짜/시간 타입 등이 있을 경우 JSON 직렬화를 위해 문자열로 변환이 필요할 수도 있음
-                # 여기서는 단순 dict 변환만 수행
-                response_data["data"] = [dict(row) for row in rows]
-                
-                # ▲▲▲ [수정된 부분 끝] ▲▲▲
+                # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
             except Exception as execution_error:
-                # 여기가 실행된다면 SQL 문법이나 DB 연결 문제임
-                print(f"🚨 [ERROR] SQL Execution Failed: {execution_error}") # 4. 에러 로그 출력
-                print(traceback.format_exc()) # 상세 에러 위치 출력
-                
+                print(f"🚨 [ERROR] BigQuery Execution Failed: {execution_error}")
+                print(traceback.format_exc())
                 response_data["data"] = []
-                # 프론트엔드에서 알 수 있게 에러 메시지 담기
                 response_data["db_error"] = str(execution_error)
 
         return response_data
