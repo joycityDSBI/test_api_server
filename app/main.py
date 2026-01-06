@@ -11,7 +11,38 @@ import traceback
 from google.cloud import bigquery
 import re
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.callbacks.base import BaseCallbackHandler
 
+class TokenCounterCallback(BaseCallbackHandler):
+    def __init__(self):
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.total_tokens = 0
+
+    def on_llm_end(self, response, **kwargs):
+        """LLM 호출이 끝날 때마다 실행되어 토큰 수를 누적합니다."""
+        try:
+            # response.generations 리스트 안에 토큰 정보가 담겨 있습니다.
+            if response.generations and len(response.generations) > 0:
+                generation = response.generations[0][0]
+                
+                # LangChain 최신 버전 및 Gemini 호환성 체크
+                usage = None
+                
+                # 1. message 객체 내 usage_metadata 확인 (최신 방식)
+                if hasattr(generation, 'message') and hasattr(generation.message, 'usage_metadata'):
+                    usage = generation.message.usage_metadata
+                # 2. generation_info 확인 (구버전 호환)
+                elif hasattr(generation, 'generation_info') and generation.generation_info:
+                    usage = generation.generation_info.get('usage_metadata')
+
+                if usage:
+                    self.input_tokens += usage.get('input_tokens', 0)
+                    self.output_tokens += usage.get('output_tokens', 0)
+                    self.total_tokens += usage.get('total_tokens', 0)
+                    
+        except Exception as e:
+            print(f"⚠️ Token counting failed: {e}")
 
 app = FastAPI(
     title="FastAPI Server",
@@ -120,8 +151,11 @@ class QueryRequest(BaseModel):
 
 @app.post("/nlquery")
 async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db)):
-    # 1. 체인 초기화 확인
 
+    # 0. 토큰 계산기 초기화
+    token_handler = TokenCounterCallback()
+    
+    # 1. 체인 초기화 확인
     if not chain:
          return {"success": False, "error": "Chain not initialized"}
 
@@ -132,8 +166,10 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
         generated_sql = chain.invoke({
             "context": context_string,
             "question": request.query
-        })
-        
+            }, 
+            config={"callbacks": [token_handler]}
+        )
+
         logger.info("SQL Generated successfully.") # 성공 로그
 
         # 1. 마크다운 제거
@@ -161,7 +197,10 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
             log_entry = QueryLog(
                 user_id=request.user_id,
                 question=request.query,
-                generated_sql=cleaned_sql
+                generated_sql=cleaned_sql,
+                total_tokens = token_handler.total_tokens,
+                input_tokens = token_handler.input_tokens,
+                output_tokens = token_handler.output_tokens
             )
             db.add(log_entry)
             db.commit() # 저장 확정
@@ -177,7 +216,8 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
             "generated_sql": cleaned_sql,
             "data": [],
             "columns": [], # 👈 빈 리스트로 초기화
-            "explanation": "데이터 조회 후 분석 대기 중..."
+            "explanation": "데이터 조회 후 분석 대기 중...",
+            "tokens": {} # 토큰 사용량 정보
         }
 
         if request.execute:
@@ -241,9 +281,12 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                         analysis_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
                         
                         # 2. invoke 호출
-                        analysis_response = analysis_llm.invoke(analysis_prompt)
-                        explanation_text = analysis_response.content
+                        analysis_response = analysis_llm.invoke(
+                            analysis_prompt,
+                            config={"callbacks": [token_handler]}
+                        )
                         
+                        explanation_text = analysis_response.content
                         response_data["explanation"] = explanation_text
                         print(f"✅ Explanation Generated: {explanation_text[:50]}...")
                         
@@ -256,12 +299,41 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                 else:
                     print("▶️ [DEBUG] No rows found. Skipping analysis.")
                     response_data["explanation"] = "조건에 맞는 데이터가 없습니다 (0건)."
+                
+                # 4. 토큰 사용량 정보 추가
+                response_data["tokens"] = {
+                    "input_tokens": token_handler.input_tokens,
+                    "output_tokens": token_handler.output_tokens,
+                    "total_tokens": token_handler.total_tokens
+                }
+                print(f"💰 Total Tokens Used: {token_handler.total_tokens} (In: {token_handler.input_tokens}, Out: {token_handler.output_tokens})")
+                
                 # ▲▲▲ [수정된 부분 끝] 실제 DB 조회 로직 ▲▲▲
             except Exception as execution_error:
                 print(f"🚨 [ERROR] BigQuery Execution Failed: {execution_error}")
                 print(traceback.format_exc())
                 response_data["data"] = []
                 response_data["db_error"] = str(execution_error)
+
+        # ▼▼▼ [핵심 추가] 4. 최종 토큰 값을 DB 로그에 업데이트 ▼▼▼
+        try:
+            # log_entry 객체는 이미 세션에 연결되어 있으므로 값만 바꾸고 commit하면 UPDATE 됨
+            log_entry.input_tokens = token_handler.input_tokens
+            log_entry.output_tokens = token_handler.output_tokens
+            log_entry.total_tokens = token_handler.total_tokens
+            
+            db.commit() # DB에 최종 반영
+            print(f"✅ Log updated with tokens: Total {token_handler.total_tokens}")
+            
+        except Exception as update_e:
+            print(f"⚠️ Failed to update token logs: {update_e}")
+
+        # 5. 응답에도 토큰 정보 포함
+        response_data["tokens"] = {
+            "input": token_handler.input_tokens,
+            "output": token_handler.output_tokens,
+            "total": token_handler.total_tokens
+        }
 
         return response_data
 

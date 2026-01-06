@@ -20,6 +20,9 @@ class QueryLog(Base):
     question = Column(Text, nullable=False)             # 사용자의 질문
     generated_sql = Column(Text, nullable=True)         # 생성된 SQL
     created_at = Column(DateTime(timezone=True), server_default=func.now()) # 생성 일시
+    input_tokens = Column(Integer, nullable=True)     # 입력 토큰 수
+    output_tokens = Column(Integer, nullable=True)    # 출력 토큰 수    
+    total_tokens = Column(Integer, nullable=True)     # 총 토큰 수
 
 # ---------------------------------------------------------
 # [추가됨] 2. 테이블 생성 함수 (main.py 시작 시 호출용)
