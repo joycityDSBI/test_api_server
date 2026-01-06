@@ -22,3 +22,4 @@ langchain-google-genai
 google-generativeai
 langchain-google-vertexai
 google-cloud-aiplatform
+faiss-cpu

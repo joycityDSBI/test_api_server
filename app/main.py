@@ -5,7 +5,7 @@ from database import get_db, engine, Base, init_db, QueryLog
 from pydantic import BaseModel
 import time
 import os
-from llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain
+from llm_logic import load_and_merge_yamls, parse_schema_to_prompt, get_gemini_chain, create_schema_retriever, get_relevant_context
 import logging
 import traceback
 from google.cloud import bigquery
@@ -131,6 +131,14 @@ class NLQueryRequest(BaseModel):
 SCHEMA_DIR = "./knowledge_graph"  # YAML 파일들이 있는 폴더 경로
 full_data = load_and_merge_yamls(SCHEMA_DIR)
 
+print("🔄 Initializing Vector Store for Schema Pruning...")
+try:
+    schema_retriever = create_schema_retriever(full_data)
+    print("✅ Schema Retriever initialized.")
+except Exception as e:
+    print(f"❌ Failed to init retriever: {e}")
+    schema_retriever = None
+
 # 2. 프롬프트 컨텍스트 생성 (메모리에 캐싱)
 context_string = parse_schema_to_prompt(full_data)
 # 3. Gemini 체인 생성
@@ -162,9 +170,18 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
     try:
         logger.info(f"Received query: {request.query}") # 로그 남기기
 
+        # ▼▼▼ [핵심 수정] 동적 Context 구성 ▼▼▼
+        if schema_retriever:
+            # 질문과 관련된 Top-5 테이블만 가져옴
+            current_context = get_relevant_context(schema_retriever, request.query)
+            logger.info("🔍 Schema Pruning applied. Relevant tables selected.")
+        else:
+            # 실패 시 기존 방식(전체 스키마) 사용 (fallback)
+            current_context = context_string
+
         # 2. LLM 실행
         generated_sql = chain.invoke({
-            "context": context_string,
+            "context": current_context,
             "question": request.query
             }, 
             config={"callbacks": [token_handler]}
@@ -300,15 +317,6 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                     print("▶️ [DEBUG] No rows found. Skipping analysis.")
                     response_data["explanation"] = "조건에 맞는 데이터가 없습니다 (0건)."
                 
-                # 4. 토큰 사용량 정보 추가
-                response_data["tokens"] = {
-                    "input_tokens": token_handler.input_tokens,
-                    "output_tokens": token_handler.output_tokens,
-                    "total_tokens": token_handler.total_tokens
-                }
-                print(f"💰 Total Tokens Used: {token_handler.total_tokens} (In: {token_handler.input_tokens}, Out: {token_handler.output_tokens})")
-                
-                # ▲▲▲ [수정된 부분 끝] 실제 DB 조회 로직 ▲▲▲
             except Exception as execution_error:
                 print(f"🚨 [ERROR] BigQuery Execution Failed: {execution_error}")
                 print(traceback.format_exc())

@@ -1,10 +1,12 @@
 import os
 import glob
 import yaml
-from langchain_google_vertexai import ChatVertexAI
+from langchain_google_vertexai import ChatVertexAI, VertexAIEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
 
 # 1. YAML 파일 병합 함수
 def load_and_merge_yamls(directory_path):
@@ -104,3 +106,61 @@ def get_gemini_chain(model_name="gemini-2.5-flash"):
     chain = prompt | llm | StrOutputParser()
     
     return chain
+
+
+# [추가] 벡터 저장소(Retriever) 생성 함수
+def create_schema_retriever(full_schema_data):
+    """
+    YAML 데이터를 기반으로 FAISS 벡터 저장소를 생성합니다.
+    각 테이블 정보를 Document 객체로 만들어 인덱싱합니다.
+    """
+    documents = []
+    
+    # full_schema_data는 {'dataset': {'table': {schema...}}} 구조라고 가정
+    for dataset_name, tables in full_schema_data.items():
+        for table_name, table_info in tables.items():
+            # 1. 검색에 사용될 텍스트 (테이블 이름 + 설명 + 컬럼명)
+            # 이 내용이 '검색'의 기준이 됩니다.
+            description = table_info.get('description', '')
+            columns = ", ".join(table_info.get('columns', {}).keys())
+            
+            page_content = f"Table: {dataset_name}.{table_name}\nDescription: {description}\nColumns: {columns}"
+            
+            # 2. 실제 LLM에게 넘겨줄 전체 스키마 텍스트 (Metadata에 저장)
+            # parse_schema_to_prompt 함수가 만드는 포맷과 유사하게 개별 테이블용 스키마 문자열 생성
+            full_schema_text = f"""
+            - Table: `{dataset_name}.{table_name}`
+            Description: {description}
+            Columns:
+            """
+            for col, col_desc in table_info.get('columns', {}).items():
+                full_schema_text += f"    - {col}: {col_desc}\n"
+
+            # Document 객체 생성
+            doc = Document(
+                page_content=page_content, # 검색용 텍스트
+                metadata={"schema_text": full_schema_text, "table_name": f"{dataset_name}.{table_name}"} # 실제 데이터
+            )
+            documents.append(doc)
+
+    # 3. 임베딩 모델 설정 (Vertex AI)
+    embeddings = VertexAIEmbeddings(model_name="text-embedding-004")
+    
+    # 4. 벡터 저장소 생성
+    vectorstore = FAISS.from_documents(documents, embeddings)
+    
+    # 5. Retriever 반환 (유사도 높은 상위 5개 테이블만 가져오도록 설정)
+    return vectorstore.as_retriever(search_kwargs={"k": 5})
+
+
+# [추가] 질문에 맞는 스키마 텍스트 추출 함수
+def get_relevant_context(retriever, query):
+    # 질문과 관련된 테이블 검색
+    relevant_docs = retriever.invoke(query)
+    
+    # 검색된 테이블들의 스키마 텍스트만 합침
+    context_string = "Here is the schema of the relevant tables:\n"
+    for doc in relevant_docs:
+        context_string += doc.metadata["schema_text"] + "\n"
+        
+    return context_string
