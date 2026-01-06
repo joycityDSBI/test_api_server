@@ -65,7 +65,7 @@ def parse_schema_to_prompt(data):
     return prompt_context
 
 # 3. [핵심] Gemini Chain 생성 함수
-def get_gemini_chain(model_name="gemini-3.0-flash"):
+def get_gemini_chain(model_name="gemini-3.0-flash-preview"):
     """
     Gemini 모델과 프롬프트를 결합하여 LangChain 실행 체인을 반환합니다.
     """
