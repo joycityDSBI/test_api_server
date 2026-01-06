@@ -1,31 +1,34 @@
-# check_models.py
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
+from google.cloud import aiplatform
 
-# .env 파일 로드
-load_dotenv()
-
-api_key = os.getenv("GOOGLE_API_KEY")
-
-if not api_key:
-    print("❌ Error: GOOGLE_API_KEY가 환경변수에 없습니다.")
-else:
-    print(f"🔑 API Key 확인됨: {api_key[:5]}...")
+def list_vertex_models():
+    aiplatform.init(project="datahub-478802", location="us-central1")
+    
+    print("🔍 Vertex AI Model Garden (Foundation Models):")
+    # Vertex AI의 모델 리스트를 가져오는 로직은 SDK 버전마다 다르지만,
+    # 가장 확실한 건 'gemini-1.5-flash'를 직접 호출해보는 것입니다.
     
     try:
-        genai.configure(api_key=api_key)
-        print("\n🔍 사용 가능한 모델 목록 (generateContent 지원):")
-        print("-" * 60)
+        from langchain_google_vertexai import ChatVertexAI
         
-        found = False
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(f"✅ {m.name}")  # 이 이름을 복사해서 써야 합니다!
-                found = True
+        # 테스트할 모델 리스트
+        candidates = [
+            "gemini-1.5-flash",
+            "gemini-2.5-flash",
+            "gemini-3.0-flash",
+            "gemini-3-flash-preview"
+        ]
         
-        if not found:
-            print("⚠️ 사용 가능한 텍스트 생성 모델이 없습니다.")
-            
+        for model in candidates:
+            print(f"\nTesting connection to: {model} ...")
+            try:
+                llm = ChatVertexAI(model_name=model)
+                res = llm.invoke("Hi")
+                print(f"✅ {model}: Available! (Response: {res.content})")
+            except Exception as e:
+                print(f"❌ {model}: Not Available ({str(e)[:50]}...)")
+                
     except Exception as e:
-        print(f"\n❌ API 호출 에러: {e}")
+        print(e)
+
+if __name__ == "__main__":
+    list_vertex_models()
