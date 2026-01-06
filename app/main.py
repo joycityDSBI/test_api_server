@@ -11,7 +11,7 @@ import traceback
 from google.cloud import bigquery
 import re
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks import BaseCallbackHandler
 
 class TokenCounterCallback(BaseCallbackHandler):
     def __init__(self):
