@@ -46,7 +46,11 @@ class TokenCounterCallback(BaseCallbackHandler):
                     
                     # 2. Output Token (Standard vs Vertex)
                     # Vertex AI는 답변 토큰을 'candidates_token_count'라고 부릅니다.
-                    output_val = usage.get('output_tokens') or usage.get('candidates_token_count') or 0
+                    candidates = usage.get('output_tokens') or usage.get('candidates_token_count') or 0
+                    thoughts = usage.get('thoughts_token_count') or 0
+                    
+                    output_val = candidates + thoughts # 답변 + 생각 = 전체 출력 비용
+                    
                     self.output_tokens += output_val
                     
                     # 3. Total Token
