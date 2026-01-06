@@ -488,7 +488,7 @@ with tab6:
                     df = pd.DataFrame(logs)
                     # 보기 좋게 컬럼 순서 조정 및 리네임
                     st.dataframe(
-                        df[["id", "user_id", "question", "generated_sql", "created_at"]],
+                        df[["id", "user_id", "question", "generated_sql", "created_at", "input_tokens", "output_tokens", "total_tokens"]],
                         use_container_width=True,
                         hide_index=True
                     )
