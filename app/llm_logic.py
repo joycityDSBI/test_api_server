@@ -76,6 +76,7 @@ def get_gemini_chain(model_name="gemini-2.5-flash"):
     llm = ChatVertexAI(
         model_name=model_name,
         temperature=0,
+        max_output_tokens=8192,
         # location="asia-northeast3" # 필요 시 리전 지정 (서울), 기본값은 us-central1
     )
 

@@ -25,6 +25,12 @@ class TokenCounterCallback(BaseCallbackHandler):
             # response.generations 리스트 안에 토큰 정보가 담겨 있습니다.
             if response.generations and len(response.generations) > 0:
                 generation = response.generations[0][0]
+
+                # ▼▼▼ [디버깅용 로그 추가] ▼▼▼
+                # Vertex AI가 데이터를 어디에 숨겨놨는지 눈으로 확인해야 합니다.
+                print(f"🔍 [DEBUG] Generation Info Keys: {generation.generation_info.keys()}")
+                print(f"🔍 [DEBUG] Generation Info Content: {generation.generation_info}")
+                # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                 
                 # LangChain 최신 버전 및 Gemini 호환성 체크
                 usage = None
@@ -260,9 +266,9 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                 # 데이터가 너무 많으면 "이하 생략" 처리
                     print("▶️ [DEBUG] Starting LLM Analysis...") # 👈 이 로그가 찍히는지 확인 중요
                     
-                    data_preview = rows[:50] 
+                    data_preview = rows[:500] 
                     data_context = str(data_preview)
-                    if len(rows) > 50:
+                    if len(rows) > 500:
                         data_context += f"\n... (총 {len(rows)}건 중 상위 50건만 표시)"
 
                     # 2-2. 해석을 위한 프롬프트 구성
