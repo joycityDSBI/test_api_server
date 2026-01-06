@@ -137,7 +137,7 @@ context_string = parse_schema_to_prompt(full_data)
 try:
     # API 키가 환경변수에 없다면 여기서 설정하거나 에러 발생
     # os.environ["GOOGLE_API_KEY"] = "your_api_key_here" 
-    chain = get_gemini_chain(model_name="gemini-3-flash-preview")
+    chain = get_gemini_chain(model_name="gemini-2.5-flash")
     print("✅ Gemini Chain initialized successfully.")
 except Exception as e:
     print(f"❌ Failed to initialize Gemini Chain: {e}")
@@ -278,7 +278,7 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                         # 1. 분석을 위한 LLM 모델을 별도로 정의 (확실한 호출을 위해)
                         # (SQL 생성에 썼던 모델과 같은 모델을 씁니다)
                         # API KEY는 이미 환경변수에 있다고 가정합니다.
-                        analysis_llm = ChatVertexAI(model="gemini-3-flash-preview", temperature=0)
+                        analysis_llm = ChatVertexAI(model="gemini-2.5-flash", temperature=0)
                         
                         # 2. invoke 호출
                         analysis_response = analysis_llm.invoke(
