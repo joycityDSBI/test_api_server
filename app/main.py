@@ -22,30 +22,36 @@ class TokenCounterCallback(BaseCallbackHandler):
     def on_llm_end(self, response, **kwargs):
         """LLM 호출이 끝날 때마다 실행되어 토큰 수를 누적합니다."""
         try:
-            # response.generations 리스트 안에 토큰 정보가 담겨 있습니다.
             if response.generations and len(response.generations) > 0:
                 generation = response.generations[0][0]
-
-                # ▼▼▼ [디버깅용 로그 추가] ▼▼▼
-                # Vertex AI가 데이터를 어디에 숨겨놨는지 눈으로 확인해야 합니다.
-                print(f"🔍 [DEBUG] Generation Info Keys: {generation.generation_info.keys()}")
-                print(f"🔍 [DEBUG] Generation Info Content: {generation.generation_info}")
-                # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
                 
-                # LangChain 최신 버전 및 Gemini 호환성 체크
+                # 디버깅 로그 (필요 시 주석 처리)
+                # print(f"🔍 [DEBUG] Info: {generation.generation_info}")
+
                 usage = None
                 
-                # 1. message 객체 내 usage_metadata 확인 (최신 방식)
+                # 1. 최신 LangChain 방식 (message.usage_metadata)
                 if hasattr(generation, 'message') and hasattr(generation.message, 'usage_metadata'):
                     usage = generation.message.usage_metadata
-                # 2. generation_info 확인 (구버전 호환)
+                # 2. 구버전 호환 (generation_info)
                 elif hasattr(generation, 'generation_info') and generation.generation_info:
-                    usage = generation.generation_info.get('usage_metadata')
+                    usage = generation.generation_info.get('usage_metadata') or generation.generation_info.get('token_usage')
 
                 if usage:
-                    self.input_tokens += usage.get('input_tokens', 0)
-                    self.output_tokens += usage.get('output_tokens', 0)
-                    self.total_tokens += usage.get('total_tokens', 0)
+                    # ▼▼▼ [핵심 수정] Vertex AI와 일반 키를 모두 체크합니다 ▼▼▼
+                    
+                    # 1. Input Token (Standard vs Vertex)
+                    input_val = usage.get('input_tokens') or usage.get('prompt_token_count') or 0
+                    self.input_tokens += input_val
+                    
+                    # 2. Output Token (Standard vs Vertex)
+                    # Vertex AI는 답변 토큰을 'candidates_token_count'라고 부릅니다.
+                    output_val = usage.get('output_tokens') or usage.get('candidates_token_count') or 0
+                    self.output_tokens += output_val
+                    
+                    # 3. Total Token
+                    total_val = usage.get('total_tokens') or usage.get('total_token_count') or 0
+                    self.total_tokens += total_val
                     
         except Exception as e:
             print(f"⚠️ Token counting failed: {e}")
