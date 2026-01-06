@@ -1,7 +1,9 @@
 import os
 import glob
 import yaml
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_vertexai import ChatVertexAI
+from langchain.prompts import PromptTemplate
+from langchain.schema.output_parser import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
@@ -69,16 +71,11 @@ def get_gemini_chain(model_name="gemini-2.5-flash"):
     Gemini 모델과 프롬프트를 결합하여 LangChain 실행 체인을 반환합니다.
     """
     
-    # API 키 확인 (환경 변수 또는 직접 입력)
-    if "GOOGLE_API_KEY" not in os.environ:
-        # os.environ["GOOGLE_API_KEY"] = "여기에_API_KEY_입력" # 필요시 주석 해제
-        pass
-
     # 1. 모델 초기화 (SQL 생성은 temperature=0 권장)
-    llm = ChatGoogleGenerativeAI(
-        model=model_name, 
+    llm = ChatVertexAI(
+        model_name=model_name,
         temperature=0,
-        convert_system_message_to_human=True
+        # location="asia-northeast3" # 필요 시 리전 지정 (서울), 기본값은 us-central1
     )
 
     # 2. 시스템 프롬프트 정의

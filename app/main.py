@@ -10,7 +10,7 @@ import logging
 import traceback
 from google.cloud import bigquery
 import re
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_vertexai import ChatVertexAI
 from langchain_core.callbacks import BaseCallbackHandler
 
 class TokenCounterCallback(BaseCallbackHandler):
@@ -278,7 +278,7 @@ async def process_nl_query(request: QueryRequest, db: Session = Depends(get_db))
                         # 1. 분석을 위한 LLM 모델을 별도로 정의 (확실한 호출을 위해)
                         # (SQL 생성에 썼던 모델과 같은 모델을 씁니다)
                         # API KEY는 이미 환경변수에 있다고 가정합니다.
-                        analysis_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+                        analysis_llm = ChatVertexAI(model="gemini-2.5-flash", temperature=0)
                         
                         # 2. invoke 호출
                         analysis_response = analysis_llm.invoke(
