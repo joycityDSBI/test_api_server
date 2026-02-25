@@ -101,8 +101,12 @@ services:
   postgres:
     image: postgres:12-alpine
     env_file: .env
+    environment:
+      # 명시적으로 비밀번호를 비워두거나(로그인 허용) 설정합니다.
+      - POSTGRES_HOST_AUTH_METHOD=trust 
     volumes:
-      - /opt/redash/postgres-data:/var/lib/postgresql/data
+      # /opt/... 대신 현재 폴더의 하위 폴더를 사용하도록 변경
+      - ./postgres-data:/var/lib/postgresql/data
     restart: always
 
   # 메시지 브로커 및 캐시 (Redis)
