@@ -62,5 +62,53 @@ services:
     environment:
       - API_URL=http://app:8000
 
+server:
+    image: redash/redash:10.1.0.b50633
+    command: server
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "5000:5000"
+    env_file: .env
+    restart: always
+
+scheduler:
+  image: redash/redash:10.1.0.b50633
+  command: scheduler
+  depends_on:
+    - server
+  env_file: .env
+  restart: always
+
+scheduled_worker:
+  image: redash/redash:10.1.0.b50633
+  command: worker
+  depends_on:
+    - server
+  env_file: .env
+  restart: always
+
+adhoc_worker:
+  image: redash/redash:10.1.0.b50633
+  command: worker
+  depends_on:
+    - server
+  env_file: .env
+  restart: always
+
+# 데이터 저장소 (PostgreSQL)
+postgres:
+  image: postgres:12-alpine
+  env_file: .env
+  volumes:
+    - /opt/redash/postgres-data:/var/lib/postgresql/data
+  restart: always
+
+# 메시지 브로커 및 캐시 (Redis)
+redis:
+  image: redis:6-alpine
+  restart: always
+
 volumes:
   mysql_data:
