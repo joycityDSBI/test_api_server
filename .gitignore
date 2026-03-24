@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+mysql-data/
+*.log
+.idea/
+.vscode/
+service-account-key.json
