@@ -1,0 +1,25 @@
+fastapi
+uvicorn[standard]
+requests
+pandas
+python-dotenv
+pyyaml
+sqlalchemy
+pymysql
+cryptography
+pydantic
+pydantic-settings
+
+# Streamlit
+streamlit
+google-cloud-bigquery
+
+# AI & LangChain (버전을 명시하지 않아 pip가 호환되는 세트를 자동으로 찾게 함)
+langchain
+langchain-core
+langchain-community
+langchain-google-genai
+google-generativeai
+langchain-google-vertexai
+google-cloud-aiplatform
+faiss-cpu

@@ -1,0 +1,221 @@
+entities:
+  # 테이블/데이터 셋 정의
+  f_common_access:
+    type: table
+    table: "datahub-478802.datahub.f_common_access"
+    description: "사용자 로그인 정보"
+    aliases:
+      - "로그인"
+      - "access"
+      - "login"
+      - "엑티브"
+    columns:
+      datekey:
+        type: date
+        description: "날짜 키"
+        aliases: ["날짜", "date", "day", "로그인 날짜"]
+      reg_datekey:
+        type: date
+        description: "회원 가입 날짜 키"
+        aliases: ["회원 가입 날짜", "registration date", "가입일"]
+      reg_datediff:
+        type: integer
+        description: "회원 가입 후 경과 일수"
+        aliases: ["가입 후 경과 일수", "days since registration", "가입 후 일수", "코호트"]
+      reg_country_code:
+        type: string
+        description: "회원 가입 국가 코드"
+        aliases: ["가입 국가", "registration country", "가입 국가 코드"]
+      game_id:
+        type: integer
+        description: "게임 ID"
+        aliases: ["게임", "game", "게임 식별자"]
+      world_id:
+        type: integer
+        description: "월드 ID"
+        aliases: ["월드", "world", "게임월드"]
+      joyple_game_code:
+        type: integer
+        description: "조이플 게임 코드"
+        aliases: ["조이플 코드", "joyple code", "게임 코드", "joyple game id", "JoypleGameID", "JoypleGameCode"]
+      game_account_name:
+        type: string
+        description: "게임 계정 이름"
+        aliases: ["계정 이름", "account name", "username", "user id", "account_id"]
+      server_name:
+        type: string
+        description: "서버 이름"
+        aliases: ["서버", "server", "server name", "서버 명"]
+      device_id:
+        type: string
+        description: "디바이스 ID"
+        aliases: ["디바이스", "device", "device identifier"]
+      country_code:
+        type: string
+        description: "로그인 시 국가 코드"
+        aliases: ["로그인 국가"]
+      market_id:
+        type: integer
+        description: "마켓 ID"
+        aliases: ["마켓", "market", "app market"]
+      os_id:
+        type: integer
+        description: "OS"
+        aliases: ["운영체제", "os", "OS", "os id"]
+      platform_device_type:
+        type: integer
+        description: "플랫폼 디바이스 유형"
+        aliases: ["platform_device_type"]
+      game_user_level:
+        type: integer
+        description: "게임 유저 레벨"
+        aliases: ["유저 레벨", "user level", "level"]
+      access_type_id:
+        type: integer
+        description: "로그인 유형 ID"
+        aliases: ["로그인 유형", "access type", "login type"]
+      access_cnt:
+        type: integer
+        description: "로그인 횟수"
+        aliases: ["로그인 횟수", "access count", "login count"]
+      play_seconds:
+        type: integer
+        description: "플레이 시간"
+        aliases: ["플레이 시간(초)", "플레이 타임", "이용 시간", "play time", "play duration"]
+
+  dim_joyple_game_code:
+    type: table
+    table: "datahub-478802.datahub.dim_joyple_game_code"
+    description: "조이플 게임 코드"
+    aliases:
+      - "조이플 게임"
+      - "joyple game"
+      - "게임 코드"
+      - "joyple game code"
+      - "JoypleGameID"
+      - "JoypleGameCode"
+    columns:
+      joyple_game_code:
+        type: integer
+        description: "조이플 게임 코드"
+        aliases: ["조이플 코드", "게임 코드", "joyple code", "joyple game id", "JoypleGameID", "JoypleGameCode"]
+      game_id:
+        type: integer
+        description: "게임 ID"
+        aliases: ["gameID", "게임 식별자"]
+      game_code_name:
+        type: string
+        description: "게임 코드 이름"
+        aliases: ["게임 코드", "game code", "game code name"]
+      game_name_KR:
+        type: string
+        description: "게임 이름"
+        aliases: ["게임 명", "게임", "game name", "", "게임명"]
+
+  dim_os_id:
+    type: table
+    description: "운영체제 ID"
+    aliases:
+      - "운영체제"
+      - "os"
+      - "OS"
+      - "os id"
+    columns:
+      os_id:
+        type: integer
+        description: "운영체제 ID"
+        aliases: ["os id", "OS id", "운영체제 식별자"]
+      os_name:
+        type: string
+        description: "운영체제 이름"
+        aliases: ["운영체제 명", "os name", "OS name"]
+      os_name_lower:
+        type: string
+        description: "운영체제 소문자"
+        aliases: ["운영체제 이름", "os type", "OS type"]
+
+# 관계 정의
+relationships:
+  - from: f_common_access
+    to: dim_joyple_game_code
+    type: many-to-one
+    join_key: joyple_game_code
+    description: "f_common_access의 joyple_game_code는 dim_joyple_game_code의 joyple_game_code를 참조합니다."
+
+  - from: f_common_access
+    to: dim_os_id
+    type: many-to-one
+    join_key: os_id
+    description: "f_common_access의 os_id는 dim_os_id의 os_id를 참조합니다."
+
+# 집계 함수 매핑
+aggregations:
+  count:
+    aliases: ["개수", "수", "횟수", "count"]
+    function: "COUNT"
+  sum:
+    aliases: ["합계", "총", "전체", "합계", "sum"]
+    function: "SUM"
+  max:
+    aliases: ["최고", "최대", "max", "가장 큰"]
+    function: "MAX"
+  min:
+    aliases: ["최소", "min", "가장 작은"]
+    function: "MIN"
+  avg:
+    aliases: ["평균", "평균값", "average", "avg"]
+    function: "AVG"
+
+# 시간 표현 매핑
+time_expressions:
+  today:
+    aliases: ["오늘", "금일", "당일"]
+    sql: "CURRENT_DATE()"
+  
+  yesterday:
+    aliases: ["어제", "전일"]
+    sql: "DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)"
+  
+  this_week:
+    aliases: ["이번주", "금주"]
+    sql: "DATE_TRUNC(CURRENT_DATE(), WEEK)"
+  
+  this_month:
+    aliases: ["이번달", "금월", "당월"]
+    sql: "DATE_TRUNC(CURRENT_DATE(), MONTH)"
+  
+  last_month:
+    aliases: ["지난달", "전월"]
+    sql: "DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)"
+
+# 게임이름 매핑
+game_mappings:
+  POTC:
+    full_name: "캐리비안의 해적"
+    table: "dim_joyple_game_code"
+    column: "joyple_game_code"
+    joyple_game_code: 131
+  
+  RESU:
+    full_name: "바이오하자드"
+    table: "dim_joyple_game_code"
+    column: "joyple_game_code"
+    joyple_game_code: 159
+
+# 필터 조건 매핑
+filters:
+  greater_than:
+    aliases: ["이상", "초과", "넘는", "크거나같은"]
+    operator: ">="
+  
+  less_than:
+    aliases: ["이하", "미만", "작은", "작거나같은"]
+    operator: "<="
+  
+  equal:
+    aliases: ["같은", "동일한", "인"]
+    operator: "="
+  
+  not_equal:
+    aliases: ["다른", "같지않은", "아닌"]
+    operator: "!="
