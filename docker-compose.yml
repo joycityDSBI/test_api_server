@@ -115,6 +115,21 @@ services:
     restart: always
 
 # Metabase 서비스 추가/수정
+  football_log_viewer:
+    build:
+      context: ./football_log_viewer
+      dockerfile: Dockerfile
+    container_name: football-log-viewer
+    restart: always
+    ports:
+      - "8502:8502"
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+
   metabase:
     image: metabase/metabase:latest
     container_name: metabase
