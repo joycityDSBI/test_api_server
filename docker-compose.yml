@@ -20,7 +20,7 @@ services:
 
   app:
     build:
-      context: ./app
+      context: ./test_api_server/app
       dockerfile: Dockerfile
     container_name: fastapi-app
     restart: always
@@ -43,12 +43,12 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - ./app:/app
+      - ./test_api_server/app:/app
       - ./app/credentials:/app/credentials
 
   streamlit:
     build:
-      context: ./app
+      context: ./test_api_server/app
       dockerfile: Dockerfile
     container_name: streamlit-app
     restart: always
@@ -58,7 +58,7 @@ services:
     depends_on:
       - app
     volumes:
-      - ./app:/app
+      - ./test_api_server/app:/app
     environment:
       - API_URL=http://app:8000
 
