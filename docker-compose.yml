@@ -129,6 +129,13 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
+    command: >
+      python -m streamlit run app.py
+      --server.port=8502
+      --server.address=0.0.0.0
+      --server.headless=true
+      --server.enableCORS=false
+      --server.enableXsrfProtection=false
 
   metabase:
     image: metabase/metabase:latest
