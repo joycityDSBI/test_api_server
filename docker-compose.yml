@@ -139,7 +139,7 @@ services:
     container_name: football-log-nginx
     restart: always
     ports:
-      - "8502:80"
+      - "8502:8502"
     volumes:
       - ./football_log_viewer/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
